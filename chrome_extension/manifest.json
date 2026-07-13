@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Feed Parser Telemetry Link",
-  "version": "1.0",
-  "description": "Extracts real-time tournament feed data and matches icons via a local Python backend.",
+  "name": "FragEngine Telemetry Link",
+  "version": "0.12",
+  "description": "Real-time telemetry extraction for FragLab Analytics.",
   "permissions": [
     "activeTab",
     "scripting",

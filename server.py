@@ -285,5 +285,5 @@ def process_frame():
 
 
 if __name__ == "__main__":
-    print("Feed Parser V0.12 Server — High-Performance Active")
+    print("FragEngine V0.12 — Active (FragLab Analytics)")
     app.run(host="127.0.0.1", port=5000, debug=False)

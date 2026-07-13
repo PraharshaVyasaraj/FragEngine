@@ -1,6 +1,6 @@
-# GameVision Telemetry Engine (V0.12)
+# FragEngine (V0.12)
 
-A high-performance, real-time telemetry extraction engine for streaming gameplay video feeds. Built as a hybrid system with a lightweight Google Chrome Side Panel frontend and a local PyTorch Flask backend, this engine extracts, normalizes, and filters BGMI/PUBG Mobile kill feed events with sub-33ms event detection latency.
+A high-performance, real-time telemetry extraction engine for streaming gameplay video feeds, developed as a subset of the **FragLab Analytics** suite. Built as a hybrid system with a lightweight Google Chrome Side Panel frontend and a local PyTorch Flask backend, this engine extracts, normalizes, and filters BGMI/PUBG Mobile kill feed events with sub-33ms event detection latency.
 
 ---
 
