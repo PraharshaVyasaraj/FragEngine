@@ -339,5 +339,27 @@ PROPOSED (V0.14):
 
 ---
 
+## V0.14 Ingestion Summary (SESSION_0009 Telemetry Run)
+* **Date**: 2026-07-13
+* **Model version**: V0.14.1 (Browser-first, 15s fight window heuristic, CPU EasyOCR baseline)
+* **Ingestion duration**: 2.92 minutes
+* **Total server requests**: 124 (vs ~2,400 expected at V0.13 rates)
+* **Effective FPS**: 0.7085 FPS
+* **Total events logged**: 110 (duplicates blocked: 14)
+* **Average OCR confidence**: 87.12%
+* **Average Levenshtein distance**: 0.0 (no corrections required for this segment)
+* **OCR latency**: avg 324.2ms (down from 2,456ms baseline due to crop optimization, but still CPU-based)
+* **Hardware overhead**:
+  * CPU: avg 12.4%, peak 100.0% (during JIT warm-up/burst load)
+  * RAM: avg 690.4MB, peak 845.8MB
+  * GPU: avg 11.5%, peak 57.0% (active native WMI sampling)
+
+### The Ingestion Breakthrough:
+Under V0.14.1, we achieved **0.71 Ingestion FPS** during active fights (down from 30 FPS constant flood). The client-side detector was highly sensitive (0.5% pixel ratio, 25% saturation limit, 400ms Normal interval) and successfully triggered Rapid mode on all visible kills.
+The **15-second Fight Window heuristic** kept the browser locked at 5Hz sampling (200ms) for the entire fight, preventing transition lags and capturing 124 frames (a 2.6x improvement over the 2s cooldown baseline) with near-zero browser CPU cost.
+
+---
+
 *Dev Note updated: 2026-07-13 | Author: Antigravity AI (Tech Lead, FragLab)*
-*Next update: Post V0.14 session run*
+*Next update: Post V0.14 Phase 2 (OpenVINO iGPU compilation)*
+
