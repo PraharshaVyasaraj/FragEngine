@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Ubuntu+Mono:wght@400;700&display=swap');
+    
+    body {
+      margin: 0;
+      padding: 10px;
+      background-color: #111317; /* Deep Carbon */
+      color: #e2e8f0; /* Brushed Silver */
+      font-family: 'Ubuntu Mono', monospace;
+      font-size: 13px;
+    }
+    
+    /* Header Banner */
+    .banner {
+      border-bottom: 2px solid #4f5d75; /* Steel Blue */
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .banner-title {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 15px;
+      font-weight: bold;
+      color: #bfa15f; /* Brushed Gold */
+      letter-spacing: 1px;
+    }
+    
+    /* Status Badge */
+    .status-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #7f8c8d;
+      border-radius: 50%;
+    }
+    .status-dot.active {
+      background-color: #27ae60; /* Tactical Green */
+      box-shadow: 0 0 8px #27ae60;
+      animation: pulse 1.5s infinite;
+    }
+    .status-dot.error {
+      background-color: #ff1744;
+      box-shadow: 0 0 8px #ff1744;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
+    }
+    
+    /* Panel Cards */
+    .panel {
+      background-color: #1d212a; /* Slate Grey Card */
+      border: 1px solid #4f5d75;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .panel-header {
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #bfa15f;
+      margin-bottom: 8px;
+      border-left: 3px solid #d35400; /* Tactical Copper */
+      padding-left: 6px;
+    }
+    
+    /* Controls Grid */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+    button {
+      background-color: #303841;
+      color: #e2e8f0;
+      border: 1px solid #4f5d75;
+      padding: 6px 4px;
+      font-family: 'Ubuntu Mono', monospace;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.15s ease;
+    }
+    button:hover:not(:disabled) {
+      background-color: #3f4b57;
+      border-color: #d35400;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .btn-action {
+      grid-column: span 3;
+      background-color: #d35400;
+      color: #e2e8f0;
+      border: 1px solid #d35400;
+      padding: 8px 10px;
+    }
+    .btn-action:hover:not(:disabled) {
+      background-color: #b34700;
+      border-color: #b34700;
+    }
+    
+    /* Diagnostics Labels */
+    .diag-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #232731;
+    }
+    .diag-label {
+      color: #7f8c8d;
+      font-weight: bold;
+    }
+    .diag-val {
+      color: #e2e8f0;
+    }
+    .diag-val.highlight {
+      color: #d35400;
+      font-weight: bold;
+    }
+    
+    /* Previews Frame */
+    .preview-container {
+      display: flex;
+      gap: 10px;
+    }
+    .preview-box {
+      flex: 1;
+      height: 50px;
+      background-color: #0d0e12;
+      border: 1px solid #4f5d75;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .preview-box canvas {
+      max-height: 100%;
+      max-width: 100%;
+    }
+    .preview-title {
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 8px;
+      color: #555555;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 0 2px;
+    }
+    
+    /* Table Logs */
+    .table-container {
+      max-height: 140px;
+      overflow-y: auto;
+      border: 1px solid #4f5d75;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th {
+      background-color: #111317;
+      color: #bfa15f;
+      font-size: 10px;
+      text-transform: uppercase;
+      padding: 4px 6px;
+      border-bottom: 1px solid #4f5d75;
+      position: sticky;
+      top: 0;
+    }
+    td {
+      padding: 4px 6px;
+      font-size: 11px;
+      border-bottom: 1px solid #232731;
+    }
+    tr:nth-child(even) {
+      background-color: #15181f;
+    }
+    tr.new-log {
+      animation: flash-green 1s ease-out;
+    }
+    
+    @keyframes flash-green {
+      0% { background-color: #1e3d22; }
+      100% { background-color: transparent; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Banner -->
+  <div class="banner">
+    <div class="banner-title">TELEMETRY LINK // V0.12</div>
+    <div class="status-container">
+      <div id="statusDot" class="status-dot"></div>
+      <div id="statusLabel" class="diag-label">OFFLINE</div>
+    </div>
+  </div>
+
+  <!-- Controls Panel -->
+  <div class="panel">
+    <div class="panel-header">Capture Settings</div>
+    <div class="controls-grid">
+      <button id="btnCalibrate">Calibrate</button>
+      <button id="btnLock" disabled style="background-color: #8a4b08; border-color: #8a4b08;">Lock ROI</button>
+      <button id="btnExport" disabled>Export CSV</button>
+      <button id="btnStart" class="btn-action" disabled>Start Telemetry Ingest</button>
+      <button id="btnStop" class="btn-action" style="display:none; background-color: #c0392b;">Stop Capture</button>
+    </div>
+    <div style="margin-top: 8px; display: flex; align-items: center; gap: 6px;">
+      <input type="checkbox" id="chkAlwaysOn" style="accent-color: #d35400; cursor: pointer;">
+      <label for="chkAlwaysOn" style="cursor: pointer; font-size: 11px; color: #7f8c8d; user-select: none;">ALWAYS INGEST AUTOMATICALLY</label>
+    </div>
+  </div>
+
+  <!-- Diagnostics Panel -->
+  <div class="panel">
+    <div class="panel-header">Pipeline Diagnostics</div>
+    
+    <div class="preview-container" style="margin-bottom: 8px;">
+      <div class="preview-box">
+        <canvas id="canvasRaw"></canvas>
+        <div class="preview-title">RAW CROP</div>
+      </div>
+      <div class="preview-box">
+        <canvas id="canvasBin"></canvas>
+        <div class="preview-title">BIN MASK</div>
+      </div>
+    </div>
+    
+    <div class="diag-row">
+      <span class="diag-label">Layout Mode:</span>
+      <span id="lblLayout" class="diag-val highlight">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">T1 (Initiator/Victim):</span>
+      <span id="lblT1" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">I1 (Cause):</span>
+      <span id="lblI1" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">I2 (Action State):</span>
+      <span id="lblI2" class="diag-val highlight">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">T2 (Victim):</span>
+      <span id="lblT2" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">The Wall Gatekeeper:</span>
+      <span id="lblWall" class="diag-val">-</span>
+    </div>
+  </div>
+
+  <!-- Log View Panel -->
+  <div class="panel" style="margin-bottom: 0;">
+    <div class="panel-header">Quality Log Telemetry Stream</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 40px; text-align: center;">Log #</th>
+            <th style="width: 50px; text-align: center;">Type</th>
+            <th>T1</th>
+            <th style="width: 60px; text-align: center;">I1</th>
+            <th style="width: 60px; text-align: center;">I2</th>
+            <th>T2</th>
+          </tr>
+        </thead>
+        <tbody id="logTableBody">
+          <!-- Rows will append here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
