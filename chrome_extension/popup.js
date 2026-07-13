@@ -1,14 +1,12 @@
 let activeTabId = null;
 let roiCoords = null;
-let draftRoiCoords = null;
 let isCapturing = false;
 let logCounter = 1;
-let localLogs = []; 
+let localLogs = [];
 
 const statusDot = document.getElementById("statusDot");
 const statusLabel = document.getElementById("statusLabel");
 const btnCalibrate = document.getElementById("btnCalibrate");
-const btnLock = document.getElementById("btnLock");
 const btnExport = document.getElementById("btnExport");
 const btnStart = document.getElementById("btnStart");
 const btnStop = document.getElementById("btnStop");
@@ -16,67 +14,61 @@ const btnStop = document.getElementById("btnStop");
 const canvasRaw = document.getElementById("canvasRaw");
 const canvasBin = document.getElementById("canvasBin");
 
-const lblLayout = document.getElementById("lblLayout");
-const lblT1 = document.getElementById("lblT1");
-const lblI1 = document.getElementById("lblI1");
-const lblI2 = document.getElementById("lblI2");
-const lblT2 = document.getElementById("lblT2");
-const lblWall = document.getElementById("lblWall");
-const logTableBody = document.getElementById("logTableBody");
+const lblDuration = document.getElementById("lblDuration");
+const lblSamplingMode = document.getElementById("lblSamplingMode");
+const lblFramesSampled = document.getElementById("lblFramesSampled");
+const lblFramesSent = document.getElementById("lblFramesSent");
+const lblFramesRejected = document.getElementById("lblFramesRejected");
 
+const lblPixelDiff = document.getElementById("lblPixelDiff");
+const lblSaturationScore = document.getElementById("lblSaturationScore");
+const lblBrightness = document.getElementById("lblBrightness");
+
+const lblFeedPresent = document.getElementById("lblFeedPresent");
+const lblRapidActive = document.getElementById("lblRapidActive");
+const lblNextSend = document.getElementById("lblNextSend");
+const lblCooldown = document.getElementById("lblCooldown");
+const lblReason = document.getElementById("lblReason");
+
+const logTableBody = document.getElementById("logTableBody");
 const chkAlwaysOn = document.getElementById("chkAlwaysOn");
 
-// Initialize and sync Side Panel with persistent background worker
+// DOM Initializer
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. Get active tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
   activeTabId = tab.id;
 
-  // 2. Query Background service worker for capture status and log history
+  // Sync state from background on popup load
   chrome.runtime.sendMessage({ action: "get-status" }, (response) => {
     if (response) {
       isCapturing = response.isCapturing;
       roiCoords = response.roi;
       logCounter = response.logCounter;
       localLogs = response.logs;
-      
-      // Default to 240x24 ROI if not set (proportions calibrated for 1920x1080 stream)
-      if (!roiCoords) {
-        roiCoords = {
-          x1_ratio: 0.0104,
-          y1_ratio: 0.0926,
-          x2_ratio: 0.1354,
-          y2_ratio: 0.1148
-        };
-        chrome.storage.local.set({ roi: roiCoords });
-        chrome.runtime.sendMessage({
-          action: "calibration-locked",
-          roi: roiCoords
-        }).catch(() => {});
-      }
 
-      // Populate historical logs
+      // Restore logs
       logTableBody.innerHTML = "";
       localLogs.forEach(log => appendLogTableRowUI(log));
-      
-      if (localLogs.length > 0) {
-        btnExport.disabled = false;
-      }
-      
+      if (localLogs.length > 0) btnExport.disabled = false;
+
       if (isCapturing) {
         setUIRunning();
+        // Fetch active diagnostics directly from content script
+        queryActiveDiagnostics();
       } else {
+        setUIStopped();
         if (roiCoords) {
           btnStart.disabled = false;
-          lblLayout.innerText = "Coordinates Loaded";
-          lblLayout.style.color = "#e2e8f0";
+          lblReason.innerText = "CALIBRATION LOADED";
+        } else {
+          lblReason.innerText = "AWAITING CALIBRATION";
         }
       }
     }
   });
 
-  // 3. Restore alwaysOn checkbox preference
+  // Restore checkbox preference
   chrome.storage.local.get(["alwaysOn"], (result) => {
     if (result.alwaysOn) {
       chkAlwaysOn.checked = true;
@@ -87,7 +79,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     chrome.storage.local.set({ alwaysOn: chkAlwaysOn.checked });
   });
 
-  // 4. Verify if a video player exists on the active tab DOM
   checkVideoStatus();
 });
 
@@ -104,7 +95,6 @@ function checkVideoStatus() {
         if (!isCapturing) {
           statusDot.className = "status-dot";
           statusLabel.innerText = "ONLINE (IDLE)";
-          statusLabel.style.color = "#7f8c8d";
           btnCalibrate.disabled = false;
         }
       }
@@ -112,57 +102,54 @@ function checkVideoStatus() {
   } catch (err) {
     if (!isCapturing) {
       statusDot.className = "status-dot error";
-      statusLabel.innerText = "ERR: RELOAD TAB";
+      statusLabel.innerText = "RELOAD ACTIVE TAB";
     }
   }
 }
 
-// Calibrate Trigger - Opens the overlay in the tab without closing the side panel
+function queryActiveDiagnostics() {
+  if (!isCapturing) return;
+  chrome.tabs.sendMessage(activeTabId, { action: "get-diagnostics" }, (response) => {
+    if (response) {
+      updateDiagnosticsUI(response);
+    }
+  });
+}
+
+// Calibrate Trigger
 btnCalibrate.addEventListener("click", () => {
   if (!activeTabId) return;
   chrome.tabs.sendMessage(activeTabId, { action: "start-calibration" }, () => {
-    lblLayout.innerText = "DRAG SELECT ROI ON TAB...";
-    lblLayout.style.color = "#bfa15f";
+    lblReason.innerText = "DRAWING ROI OVER KILL FEED...";
   });
-});
-
-// Lock Calibration Coordinates inside the Side Panel UI
-btnLock.addEventListener("click", () => {
-  if (draftRoiCoords) {
-    roiCoords = draftRoiCoords;
-    chrome.storage.local.set({ roi: roiCoords }, () => {
-      btnStart.disabled = false;
-      lblLayout.innerText = "ROI LOCKED";
-      lblLayout.style.color = "#00e676";
-      
-      // Reset Lock Button State
-      btnLock.disabled = true;
-      btnLock.style.backgroundColor = "#8a4b08";
-      btnLock.style.borderColor = "#8a4b08";
-      
-      // Command tab to close selection overlay
-      chrome.tabs.sendMessage(activeTabId, { action: "close-calibration" }).catch(() => {});
-    });
-  }
 });
 
 // Start Ingest
 btnStart.addEventListener("click", () => {
   if (!activeTabId || !roiCoords) return;
   
+  // Start the background process state
   chrome.runtime.sendMessage({
     action: "start-capture",
     tabId: activeTabId,
     roi: roiCoords
   }, () => {
-    setUIRunning();
+    // Start sampling engine inside content script
+    chrome.tabs.sendMessage(activeTabId, {
+      action: "start-sampling",
+      roi: roiCoords
+    }, () => {
+      setUIRunning();
+    });
   });
 });
 
 // Stop Ingest
 btnStop.addEventListener("click", () => {
   chrome.runtime.sendMessage({ action: "stop-capture" }, () => {
-    setUIStopped();
+    chrome.tabs.sendMessage(activeTabId, { action: "stop-sampling" }, () => {
+      setUIStopped();
+    });
   });
 });
 
@@ -170,16 +157,11 @@ function setUIRunning() {
   isCapturing = true;
   btnStart.style.display = "none";
   btnStop.style.display = "block";
-  btnStop.disabled = false;
   btnCalibrate.disabled = true;
-  btnLock.disabled = true;
   btnExport.disabled = false;
   
   statusDot.className = "status-dot active";
-  statusLabel.innerText = "INGESTING (30 FPS)";
-  statusLabel.style.color = "#00e676";
-  lblWall.innerText = "MONITORING ACTIVE";
-  lblWall.style.color = "#00e676";
+  statusLabel.innerText = "INGESTING (NORMAL)";
 }
 
 function setUIStopped() {
@@ -190,50 +172,42 @@ function setUIStopped() {
   
   statusDot.className = "status-dot";
   statusLabel.innerText = "ONLINE (IDLE)";
-  statusLabel.style.color = "#7f8c8d";
-  lblWall.innerText = "STOPPED";
-  lblWall.style.color = "#7f8c8d";
+  lblSamplingMode.innerText = "-";
+  lblDuration.innerText = "-";
+  lblFramesSampled.innerText = "-";
+  lblFramesSent.innerText = "-";
+  lblFramesRejected.innerText = "-";
 }
 
-// Listen for updates from content script & background worker
+// Receive messages from content script & background worker
 chrome.runtime.onMessage.addListener((message) => {
   if (message.action === "update-roi") {
     roiCoords = message.roi;
     btnStart.disabled = false;
-    lblLayout.innerText = "ROI LOCKED";
-    lblLayout.style.color = "#00e676";
+    lblReason.innerText = "ROI LOCKED & READY";
   } 
   else if (message.action === "calibration-draft") {
-    draftRoiCoords = message.roi;
-    // If ROI was auto-locked by content.js, also update the main roiCoords
     roiCoords = message.roi;
-    btnLock.disabled = true;
-    btnLock.style.backgroundColor = "#8a4b08";
-    btnLock.style.borderColor = "#8a4b08";
     btnStart.disabled = false;
-    lblLayout.innerText = "ROI AUTO-LOCKED";
-    lblLayout.style.color = "#00e676";
+    lblReason.innerText = "ROI LOCKED & READY";
+  }
+  else if (message.action === "mode-change") {
+    if (isCapturing) {
+      if (message.mode === "RAPID") {
+        statusDot.className = "status-dot rapid";
+        statusLabel.innerText = "INGESTING (RAPID)";
+      } else {
+        statusDot.className = "status-dot active";
+        statusLabel.innerText = "INGESTING (NORMAL)";
+      }
+    }
   }
   else if (message.action === "frame-previews") {
     renderRawPreview(message.raw);
     
-    if (message.status === "skipped") {
-      lblWall.innerText = "BLOCKED: empty / transient frame";
-      lblWall.style.color = "#4f5d75";
-    } else if (message.status === "duplicate") {
-      lblWall.innerText = "BLOCKED: duplicate event";
-      lblWall.style.color = "#ff1744";
-    } else if (message.status === "server_offline") {
-      lblWall.innerText = "SERVER OFFLINE (127.0.0.1:5000)";
-      lblWall.style.color = "#ff1744";
-    } else if (message.status === "logged" && message.data) {
-      lblLayout.innerText = message.data.layout;
-      lblT1.innerText = message.data.t1;
-      lblI1.innerText = message.data.i1;
-      lblI2.innerText = message.data.i2;
-      lblT2.innerText = message.data.t2;
-      lblWall.innerText = "PASSED THE WALL";
-      lblWall.style.color = "#00e676";
+    // Process real-time engine diagnostics (V0.14)
+    if (message.diagnostics) {
+      updateDiagnosticsUI(message.diagnostics);
     }
   } 
   else if (message.action === "new-log-entry") {
@@ -242,13 +216,62 @@ chrome.runtime.onMessage.addListener((message) => {
   }
   else if (message.action === "tab-disconnected") {
     setUIStopped();
-    lblWall.innerText = "TAB DISCONNECTED";
-    lblWall.style.color = "#ff1744";
+    lblReason.innerText = "TAB DISCONNECTED";
     checkVideoStatus();
   }
 });
 
-// Render base64 raw preview and binarize
+function formatDuration(sec) {
+  if (!sec && sec !== 0) return "-";
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}m ${String(s).padStart(2, '0')}s`;
+}
+
+function updateDiagnosticsUI(diag) {
+  // Mode & Temporal
+  lblSamplingMode.innerText = diag.engine.mode || "-";
+  lblSamplingMode.className = diag.engine.mode === "RAPID" ? "diag-val alert" : "diag-val highlight";
+  lblDuration.innerText = formatDuration(diag.engine.sessionDurationSec);
+  
+  // Pipeline counters
+  lblFramesSampled.innerText = diag.engine.framesSampled || "0";
+  lblFramesSent.innerText = diag.scheduler.framesSent || "0";
+  lblFramesRejected.innerText = diag.scheduler.framesRejected || "0";
+  
+  // Pixel analysis
+  lblPixelDiff.innerText = diag.pixelDiff !== undefined ? `${diag.pixelDiff} px` : "-";
+  
+  const detector = diag.feedDetector || {};
+  lblSaturationScore.innerText = detector.saturationScore !== undefined ? `${detector.saturationScore}` : "-";
+  lblSaturationScore.className = detector.feedPresent ? "diag-val alert" : "diag-val";
+  lblBrightness.innerText = detector.avgBrightness !== undefined ? `${detector.avgBrightness}` : "-";
+  
+  // Decision Engine
+  lblFeedPresent.innerText = detector.feedPresent ? "YES" : "NO";
+  lblFeedPresent.className = detector.feedPresent ? "diag-val alert" : "diag-val";
+  
+  lblRapidActive.innerText = diag.engine.mode === "RAPID" ? "YES" : "NO";
+  lblRapidActive.className = diag.engine.mode === "RAPID" ? "diag-val alert" : "diag-val";
+  
+  lblNextSend.innerText = diag.scheduler.nextSendIn !== undefined ? `${diag.scheduler.nextSendIn}ms` : "-";
+  lblCooldown.innerText = diag.engine.cooldownActive ? "ACTIVE" : "INACTIVE";
+  lblCooldown.className = diag.engine.cooldownActive ? "diag-val alert" : "diag-val neutral";
+  
+  // Decide reason text
+  if (diag.engine.mode === "NORMAL") {
+    lblReason.innerText = "MONITORING IDLE FEED";
+  } else if (diag.engine.mode === "RAPID") {
+    if (detector.feedPresent) {
+      const region = detector.detectedRegion ? detector.detectedRegion.toUpperCase() : "UNKNOWN";
+      lblReason.innerText = `ACTIVE FEED IN ${region}`;
+    } else {
+      lblReason.innerText = "COOLDOWN PENDING EXIT";
+    }
+  }
+}
+
+// Render previews (Canvas Raw and Canvas Bin)
 function renderRawPreview(dataUrl) {
   const img = new Image();
   img.onload = () => {
@@ -264,6 +287,7 @@ function renderRawPreview(dataUrl) {
     const imgData = ctxBin.getImageData(0, 0, canvasBin.width, canvasBin.height);
     const data = imgData.data;
     
+    // Apply local binarization preview
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i];
       const g = data[i+1];
@@ -279,7 +303,6 @@ function renderRawPreview(dataUrl) {
   img.src = dataUrl;
 }
 
-// Append log row to table UI
 function appendLogTableRowUI(log) {
   const row = document.createElement("tr");
   row.className = "new-log";
@@ -294,19 +317,17 @@ function appendLogTableRowUI(log) {
   `;
   
   logTableBody.appendChild(row);
-  
   const container = document.querySelector(".table-container");
-  container.scrollTop = container.scrollHeight;
+  if (container) container.scrollTop = container.scrollHeight;
 }
 
-// Export CSV logs locally
+// Safe CSV Export using W3C Blob + chrome.downloads API
 btnExport.addEventListener("click", () => {
   chrome.runtime.sendMessage({ action: "get-status" }, (response) => {
     if (!response || response.logs.length === 0) return;
     
     let csvContent = "Log #,Layout Type,T1,I1,I2,T2\n";
     response.logs.forEach(log => {
-      // Wrap each field in quotes to safely handle commas in player names
       csvContent += `"${log.log_num}","${log.layout}","${log.t1}","${log.i1}","${log.i2}","${log.t2}"\n`;
     });
 
