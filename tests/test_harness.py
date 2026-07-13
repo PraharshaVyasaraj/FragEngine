@@ -1,6 +1,9 @@
+import os
+import cv2
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from parser import FeedParser
+
 
 def main():
     # Setup paths
