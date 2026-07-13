@@ -158,7 +158,7 @@ class TelemetryCollector:
                 
             time.sleep(0.5)
 
-    def log_request_performance(self, stages_ms, total_ms, dict_hits_count=0, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0):
+    def log_request_performance(self, stages_ms, total_ms, dict_hits_count=0, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="logged"):
         """Logs a single pipeline processing event with exact stage latency profiling"""
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         
@@ -196,9 +196,9 @@ class TelemetryCollector:
                     self.levenshtein_distances.append(levenshtein_dist)
                 
                 self.dict_hits += dict_hits_count
-                if duplicate_blocked:
+                if duplicate_blocked or status == "duplicate":
                     self.suppressed_duplicates += 1
-                else:
+                elif status == "logged":
                     self.total_events_logged += 1
                 
                 # Append request metrics to CSV

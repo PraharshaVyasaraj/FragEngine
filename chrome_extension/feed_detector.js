@@ -10,19 +10,18 @@
  */
 
 const FeedDetector = (() => {
-  // Tunable thresholds
-  const SATURATION_THRESHOLD = 0.25;  // Min saturation to count as "colored" (V0.14.1)
-  const BRIGHTNESS_MIN = 80;          // Min brightness (ignore dark noise)
-  const ICON_PIXEL_RATIO = 0.005;     // 0.5% of ROI pixels must be colored (V0.14.1)
+  // Tunable thresholds (V0.14.2)
+  const BINARIZATION_THRESHOLD = 180; // Brightness cutoff for binarization (0-255)
+  const DENSITY_MIN = 0.03;           // 3% min density of white pixels
+  const DENSITY_MAX = 0.30;           // 30% max density of white pixels
 
   // Diagnostics (exposed for popup)
   let lastResult = {
     feedPresent: false,
-    saturationScore: 0,
-    coloredPixels: 0,
+    saturationScore: 0, // Used for binarization ratio in popup.js compatibility
+    whitePixels: 0,
     totalPixels: 0,
-    avgBrightness: 0,
-    detectedRegion: null // 'left', 'center', 'right' — where the color cluster is
+    avgBrightness: 0
   };
 
   /**
@@ -34,65 +33,37 @@ const FeedDetector = (() => {
     const pixels = imageData.data;
     const totalPixels = pixels.length / 4;
     
-    let coloredPixelCount = 0;
+    let whitePixelCount = 0;
     let brightnessSum = 0;
     
-    // Track colored pixel positions for region detection
-    let coloredLeftCount = 0;
-    let coloredCenterCount = 0;
-    let coloredRightCount = 0;
-    const width = imageData.width;
-    const thirdWidth = Math.floor(width / 3);
-
     for (let i = 0; i < pixels.length; i += 4) {
       const r = pixels[i];
       const g = pixels[i + 1];
       const b = pixels[i + 2];
       
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      const saturation = max === 0 ? 0 : (max - min) / max;
-      
-      brightnessSum += max;
+      // Standard Luma conversion
+      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+      brightnessSum += brightness;
 
-      if (saturation > SATURATION_THRESHOLD && max > BRIGHTNESS_MIN) {
-        coloredPixelCount++;
-        
-        // Determine which third of the image this pixel is in
-        const pixelIndex = i / 4;
-        const x = pixelIndex % width;
-        if (x < thirdWidth) {
-          coloredLeftCount++;
-        } else if (x < thirdWidth * 2) {
-          coloredCenterCount++;
-        } else {
-          coloredRightCount++;
-        }
+      // Threshold at 180 to count active white pixels (names and icons)
+      if (brightness >= BINARIZATION_THRESHOLD) {
+        whitePixelCount++;
       }
     }
 
-    const ratio = coloredPixelCount / totalPixels;
+    const ratio = whitePixelCount / totalPixels;
     const avgBrightness = brightnessSum / totalPixels;
     
-    // Determine which region has the most colored pixels
-    let detectedRegion = null;
-    if (coloredPixelCount > 0) {
-      const maxRegion = Math.max(coloredLeftCount, coloredCenterCount, coloredRightCount);
-      if (maxRegion === coloredLeftCount) detectedRegion = 'left';
-      else if (maxRegion === coloredCenterCount) detectedRegion = 'center';
-      else detectedRegion = 'right';
-    }
-
-    const feedPresent = ratio >= ICON_PIXEL_RATIO;
+    // Gating logic: active kill feed sits in 3% to 30% white pixel density range
+    const feedPresent = ratio >= DENSITY_MIN && ratio <= DENSITY_MAX;
 
     // Store diagnostics
     lastResult = {
       feedPresent,
-      saturationScore: Math.round(ratio * 10000) / 10000,
-      coloredPixels: coloredPixelCount,
+      saturationScore: Math.round(ratio * 10000) / 10000, // Kept key name for popup compatibility
+      whitePixels: whitePixelCount,
       totalPixels,
-      avgBrightness: Math.round(avgBrightness),
-      detectedRegion
+      avgBrightness: Math.round(avgBrightness)
     };
 
     return feedPresent;

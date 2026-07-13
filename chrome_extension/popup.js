@@ -254,7 +254,13 @@ function updateDiagnosticsUI(diag) {
   lblRapidActive.innerText = diag.engine.mode === "RAPID" ? "YES" : "NO";
   lblRapidActive.className = diag.engine.mode === "RAPID" ? "diag-val alert" : "diag-val";
   
-  lblNextSend.innerText = diag.scheduler.nextSendIn !== undefined ? `${diag.scheduler.nextSendIn}ms` : "-";
+  if (!detector.feedPresent) {
+    lblNextSend.innerText = "SUSPENDED";
+    lblNextSend.className = "diag-val neutral";
+  } else {
+    lblNextSend.innerText = diag.scheduler.nextSendIn !== undefined ? `${diag.scheduler.nextSendIn}ms` : "-";
+    lblNextSend.className = "diag-val alert";
+  }
   lblCooldown.innerText = diag.engine.cooldownActive ? "ACTIVE" : "INACTIVE";
   lblCooldown.className = diag.engine.cooldownActive ? "diag-val alert" : "diag-val neutral";
   
@@ -273,6 +279,7 @@ function updateDiagnosticsUI(diag) {
 
 // Render previews (Canvas Raw and Canvas Bin)
 function renderRawPreview(dataUrl) {
+  if (!dataUrl) return;
   const img = new Image();
   img.onload = () => {
     canvasRaw.width = img.width;

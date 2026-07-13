@@ -13,12 +13,13 @@
 const SamplingEngine = (() => {
   const NORMAL_INTERVAL_MS = 400; // Sample every 400ms (V0.14.1)
   const RAPID_INTERVAL_MS = 200;  // Sample every 200ms
-  const RAPID_LOCK_DURATION_MS = 15000; // Stay in Rapid mode for 15s fight window (V0.14.1)
+  const RAPID_LOCK_DURATION_MS = 1500; // Stay in Rapid mode for 1.5s lock (V0.14.2)
 
   let mode = 'IDLE';  // 'IDLE', 'NORMAL', 'RAPID'
   let intervalId = null;
-  let rapidModeLockedUntil = 0; // Expiration timestamp for fight window lock (V0.14.1)
+  let rapidModeLockedUntil = 0; // Expiration timestamp for fight window lock
   let lastIconDetectedTime = 0;
+  let lastPreviewTime = 0; // Throttle preview ticks (V0.14.2)
 
   // Session stats
   let sessionStartTime = null;
@@ -154,10 +155,16 @@ const SamplingEngine = (() => {
       }
     }
 
+    const now = Date.now();
+    const shouldSendPreview = feedPresent || (now - lastPreviewTime >= 1000);
+    if (shouldSendPreview) {
+      lastPreviewTime = now;
+    }
+
     // Broadcast frame preview to side panel
     chrome.runtime.sendMessage({
       action: "frame-previews",
-      raw: frame.dataUrl,
+      raw: shouldSendPreview ? frame.dataUrl : null,
       status: feedPresent ? "icon-detected" : "monitoring",
       diagnostics: {
         mode: mode,
