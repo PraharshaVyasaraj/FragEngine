@@ -11,13 +11,13 @@
  */
 
 const SamplingEngine = (() => {
-  const NORMAL_INTERVAL_MS = 700;
-  const RAPID_INTERVAL_MS = 200;
-  const RAPID_COOLDOWN_MS = 2000; // Stay rapid for 2s after last icon
+  const NORMAL_INTERVAL_MS = 400; // Sample every 400ms (V0.14.1)
+  const RAPID_INTERVAL_MS = 200;  // Sample every 200ms
+  const RAPID_LOCK_DURATION_MS = 15000; // Stay in Rapid mode for 15s fight window (V0.14.1)
 
   let mode = 'IDLE';  // 'IDLE', 'NORMAL', 'RAPID'
   let intervalId = null;
-  let cooldownTimer = null;
+  let rapidModeLockedUntil = 0; // Expiration timestamp for fight window lock (V0.14.1)
   let lastIconDetectedTime = 0;
 
   // Session stats
@@ -81,11 +81,8 @@ const SamplingEngine = (() => {
       clearInterval(intervalId);
       intervalId = null;
     }
-    if (cooldownTimer) {
-      clearTimeout(cooldownTimer);
-      cooldownTimer = null;
-    }
     mode = 'IDLE';
+    rapidModeLockedUntil = 0;
   }
 
   function enterNormalMode() {
@@ -96,14 +93,10 @@ const SamplingEngine = (() => {
     
     mode = 'NORMAL';
     modeStartTime = Date.now();
+    rapidModeLockedUntil = 0;
     
     if (intervalId) clearInterval(intervalId);
     intervalId = setInterval(sampleAndDetect, NORMAL_INTERVAL_MS);
-    
-    if (cooldownTimer) {
-      clearTimeout(cooldownTimer);
-      cooldownTimer = null;
-    }
 
     broadcastModeChange('NORMAL');
   }
@@ -121,25 +114,12 @@ const SamplingEngine = (() => {
     
     mode = 'RAPID';
     modeStartTime = Date.now();
+    rapidModeLockedUntil = Date.now() + RAPID_LOCK_DURATION_MS; // Lock Fight Window (15s)
     
     if (intervalId) clearInterval(intervalId);
     intervalId = setInterval(sampleAndDetect, RAPID_INTERVAL_MS);
-    
-    // Clear any pending normal-return cooldown
-    if (cooldownTimer) {
-      clearTimeout(cooldownTimer);
-      cooldownTimer = null;
-    }
 
     broadcastModeChange('RAPID');
-  }
-
-  function scheduleNormalReturn() {
-    if (cooldownTimer) clearTimeout(cooldownTimer);
-    cooldownTimer = setTimeout(() => {
-      enterNormalMode();
-      cooldownTimer = null;
-    }, RAPID_COOLDOWN_MS);
   }
 
   /**
@@ -167,6 +147,11 @@ const SamplingEngine = (() => {
     if (feedPresent) {
       stats.framesWithIcon++;
       lastIconDetectedTime = Date.now();
+      
+      // Extend Fight Window lock if we detect a new icon during Rapid mode
+      if (mode === 'RAPID') {
+        rapidModeLockedUntil = Date.now() + RAPID_LOCK_DURATION_MS;
+      }
     }
 
     // Broadcast frame preview to side panel
@@ -190,17 +175,13 @@ const SamplingEngine = (() => {
     
     if (mode === 'RAPID') {
       if (feedPresent) {
-        // Feed still active — evaluate for transmission
+        // Feed active — evaluate for transmission
         TransmissionScheduler.evaluate(frame);
-        // Reset cooldown timer
-        if (cooldownTimer) {
-          clearTimeout(cooldownTimer);
-          cooldownTimer = null;
-        }
       } else {
-        // Feed gone — start cooldown to return to normal
-        if (!cooldownTimer) {
-          scheduleNormalReturn();
+        // Feed silent — check if Fight Window has expired
+        const now = Date.now();
+        if (now >= rapidModeLockedUntil) {
+          enterNormalMode();
         }
       }
     }
@@ -220,6 +201,7 @@ const SamplingEngine = (() => {
   function getDiagnostics() {
     const now = Date.now();
     const sessionDuration = sessionStartTime ? (now - sessionStartTime) / 1000 : 0;
+    const isLocked = mode === 'RAPID' && now < rapidModeLockedUntil;
     
     return {
       mode,
@@ -230,7 +212,7 @@ const SamplingEngine = (() => {
       modeTransitions: stats.modeTransitions,
       sessionDurationSec: Math.round(sessionDuration),
       currentIntervalMs: mode === 'RAPID' ? RAPID_INTERVAL_MS : NORMAL_INTERVAL_MS,
-      cooldownActive: !!cooldownTimer,
+      cooldownActive: isLocked,
       timeSinceLastIcon: lastIconDetectedTime ? Math.round((now - lastIconDetectedTime) / 1000) : null
     };
   }

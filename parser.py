@@ -87,6 +87,7 @@ class FeedParser:
         ocr_ms = (t_ocr_end - t_ocr_start) * 1000
         
         text_blocks = []
+        ocr_confidences = []
         for res in results:
             bbox, text, prob = res
             x1 = int(bbox[0][0])
@@ -96,6 +97,9 @@ class FeedParser:
             # Only keep reliable text blocks that are wide enough
             if (x2 - x1) > 10 and prob > 0.2:
                 text_blocks.append({"text": text.strip(), "x1": x1, "x2": x2, "y1": y1, "y2": y2})
+                ocr_confidences.append(prob)
+                
+        ocr_confidence_avg = float(np.mean(ocr_confidences)) if ocr_confidences else 0.0
                 
         # Sort left-to-right
         text_blocks = sorted(text_blocks, key=lambda b: b["x1"])
@@ -113,7 +117,13 @@ class FeedParser:
             icon_x1 = text_blocks[0]["x2"]
             icon_x2 = w
         else:
-            return None # Skip empty/noisy frames
+            return {
+                "status": "unrecognizable",
+                "_timings": {
+                    "ocr": ocr_ms,
+                    "icon_match": 0.0
+                }
+            }
             
         t_match_start = time.perf_counter()
         # Isolate the horizontal band containing the icons
@@ -157,6 +167,7 @@ class FeedParser:
             "i1": i1,
             "i2": i2,
             "t2": t2,
+            "ocr_confidence": ocr_confidence_avg,
             "_timings": {
                 "ocr": ocr_ms,
                 "icon_match": match_ms

@@ -1,0 +1,230 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Ubuntu+Mono:wght@400;700&display=swap');
+
+body {
+  margin: 0;
+  padding: 10px;
+  background-color: #0b0d10; /* Deep Carbon Black */
+  color: #e2e8f0; /* Brushed Silver */
+  font-family: 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  user-select: none;
+}
+
+/* Header Banner */
+.banner {
+  border-bottom: 2px solid #232a35;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.banner-title {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 14px;
+  font-weight: bold;
+  color: #bfa15f; /* Gold accent */
+  letter-spacing: 1.5px;
+}
+
+/* Status Badge */
+.status-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #7f8c8d;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+.status-dot.active {
+  background-color: #00e676; /* Green */
+  box-shadow: 0 0 10px #00e676;
+  animation: pulse 1.5s infinite;
+}
+.status-dot.rapid {
+  background-color: #d35400; /* Rapid copper alert */
+  box-shadow: 0 0 10px #d35400;
+  animation: pulse 0.6s infinite;
+}
+.status-dot.error {
+  background-color: #ff1744;
+  box-shadow: 0 0 10px #ff1744;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+/* Grid Layouts and Cards */
+.panel {
+  background-color: #12161f; /* Card Slate */
+  border: 1px solid #232a35;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.panel-header {
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: #bfa15f;
+  margin-bottom: 8px;
+  border-left: 3px solid #d35400;
+  padding-left: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Controls Grid */
+.controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+button {
+  background-color: #1a202c;
+  color: #e2e8f0;
+  border: 1px solid #2d3748;
+  border-radius: 3px;
+  padding: 6px 4px;
+  font-family: 'Ubuntu Mono', monospace;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+button:hover:not(:disabled) {
+  background-color: #2d3748;
+  border-color: #d35400;
+  color: #fff;
+}
+button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.btn-action {
+  grid-column: span 3;
+  background-color: #d35400;
+  color: #e2e8f0;
+  border: 1px solid #d35400;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.btn-action:hover:not(:disabled) {
+  background-color: #e67e22;
+  border-color: #e67e22;
+}
+.btn-action.btn-stop {
+  background-color: #c0392b;
+  border-color: #c0392b;
+}
+.btn-action.btn-stop:hover {
+  background-color: #e74c3c;
+  border-color: #e74c3c;
+}
+
+/* Diagnostics Rows */
+.diag-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #1a202c;
+}
+.diag-label {
+  color: #718096;
+}
+.diag-val {
+  color: #e2e8f0;
+  font-weight: bold;
+}
+.diag-val.highlight {
+  color: #bfa15f;
+}
+.diag-val.success {
+  color: #00e676;
+}
+.diag-val.alert {
+  color: #d35400;
+}
+.diag-val.neutral {
+  color: #4a5568;
+}
+
+/* Previews Box */
+.preview-container {
+  display: flex;
+  gap: 10px;
+}
+.preview-box {
+  flex: 1;
+  height: 40px;
+  background-color: #05070a;
+  border: 1px solid #2d3748;
+  border-radius: 3px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+.preview-box canvas {
+  max-height: 100%;
+  max-width: 100%;
+  image-rendering: pixelated;
+}
+.preview-title {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 8px;
+  color: #4a5568;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 0 2px;
+}
+
+/* Table View for Logs */
+.table-container {
+  max-height: 120px;
+  overflow-y: auto;
+  border: 1px solid #2d3748;
+  border-radius: 3px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+th {
+  background-color: #0f121a;
+  color: #bfa15f;
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 4px 6px;
+  border-bottom: 1px solid #2d3748;
+  position: sticky;
+  top: 0;
+}
+td {
+  padding: 4px 6px;
+  font-size: 11px;
+  border-bottom: 1px solid #1a202c;
+}
+tr:nth-child(even) {
+  background-color: #12161f;
+}
+tr.new-log {
+  animation: flash-green 1s ease-out;
+}
+
+@keyframes flash-green {
+  0% { background-color: #1e3d22; }
+  100% { background-color: transparent; }
+}

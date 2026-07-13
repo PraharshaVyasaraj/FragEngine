@@ -18,8 +18,7 @@ from parser import FeedParser
 
 # Setup telemetry collector path
 base_dir = r"E:\Games Data\SAMPLE_IMAGESET_FEED"
-sys.path.append(os.path.join(base_dir, "backend"))
-from telemetry import TelemetryCollector
+from backend.telemetry import TelemetryCollector
 
 # Initialize Telemetry
 telemetry = TelemetryCollector(base_dir)
@@ -197,6 +196,7 @@ def is_fuzzy_duplicate(entry1, entry2):
 def process_frame():
     global last_log_entry, log_counter
 
+    telemetry.increment_request_count()
     t_start = time.perf_counter()
     stages_ms = {
         "decode": 0.0,
@@ -206,6 +206,8 @@ def process_frame():
         "dict_correction": 0.0
     }
     dict_hits_count = 0
+    ocr_confidence = 0.0
+    levenshtein_dist = 0.0
 
     try:
         data = request.json
@@ -235,7 +237,7 @@ def process_frame():
             total_ms = (time.perf_counter() - t_start) * 1000
             
             # Log skipped performance
-            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False)
+            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0)
             print(f"[WALL BLOCKED] Bright frame (brightness={mean_brightness:.1f}) — likely UI noise, skipping OCR")
             return jsonify({"status": "skipped", "reason": f"Bright frame: {mean_brightness:.1f}"})
 
@@ -248,34 +250,47 @@ def process_frame():
         # ─────────────────────────────────────────────────────────
         res = parser.process_frame(img_upscaled)
 
-        if res is None:
+        if res is None or res.get("status") == "unrecognizable":
+            if res and "_timings" in res:
+                stages_ms["ocr"] = res["_timings"].get("ocr", 0.0)
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False)
+            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0)
             return jsonify({"status": "skipped", "reason": "Unrecognizable layout"})
 
-        # Retrieve sub-stage timings from parser
+        # Retrieve sub-stage timings and confidence from parser
         stages_ms["ocr"] = res.get("_timings", {}).get("ocr", 0.0)
         stages_ms["icon_match"] = res.get("_timings", {}).get("icon_match", 0.0)
+        ocr_confidence = res.get("ocr_confidence", 0.0)
 
         # ─────────────────────────────────────────────────────────
         # V1.2 DATA CLEANING & AUTO-CORRECTION
         # ─────────────────────────────────────────────────────────
         t_dict_start = time.perf_counter()
-        res["t1"], corrections_1 = clean_and_normalize_name(res.get("t1", "") or "")
-        res["t2"], corrections_2 = clean_and_normalize_name(res.get("t2", "") or "")
+        t1_orig = res.get("t1", "") or ""
+        t2_orig = res.get("t2", "") or ""
+        
+        res["t1"], corrections_1 = clean_and_normalize_name(t1_orig)
+        res["t2"], corrections_2 = clean_and_normalize_name(t2_orig)
         dict_hits_count = corrections_1 + corrections_2
+        
+        # Calculate Levenshtein edit distance
+        import Levenshtein
+        t1_edit = Levenshtein.distance(t1_orig.upper(), res["t1"].upper()) if corrections_1 > 0 else 0
+        t2_edit = Levenshtein.distance(t2_orig.upper(), res["t2"].upper()) if corrections_2 > 0 else 0
+        levenshtein_dist = float(t1_edit + t2_edit)
+        
         stages_ms["dict_correction"] = (time.perf_counter() - t_dict_start) * 1000
 
         # Minimum name length check (kills transient noise)
         if len(res["t1"]) < MIN_NAME_LENGTH:
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False)
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
             print(f"[WALL BLOCKED] T1 too short: '{res['t1']}'")
             return jsonify({"status": "skipped", "reason": f"T1 too short: {res['t1']}"})
 
         if res["layout"] == "2T2I" and len(res["t2"]) < MIN_NAME_LENGTH:
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False)
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
             print(f"[WALL BLOCKED] T2 too short: '{res['t2']}'")
             return jsonify({"status": "skipped", "reason": f"T2 too short: {res['t2']}"})
 
@@ -304,7 +319,7 @@ def process_frame():
                         break
             if cooldown_blocked:
                 total_ms = (time.perf_counter() - t_start) * 1000
-                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True)
+                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
                 print(f"[WALL BLOCKED] Cooldown block on victim: '{res['t2']}' for action '{res['i2']}'")
                 return jsonify({"status": "duplicate", "reason": f"Victim '{res['t2']}' in cooldown for '{res['i2']}'"})
 
@@ -320,7 +335,7 @@ def process_frame():
         )
         if last_log_entry and is_fuzzy_duplicate(candidate_entry, last_log_entry):
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True)
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
             print(f"[WALL BLOCKED] Fuzzy duplicate match: {res['t1']} -> {res['t2']}")
             return jsonify({"status": "duplicate"})
 
@@ -338,7 +353,7 @@ def process_frame():
             f.write(log_line)
 
         total_ms = (time.perf_counter() - t_start) * 1000
-        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False)
+        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
         print(f"[WALL PASSED] Logged: {log_line.strip()}")
 
         response_data = {
@@ -351,11 +366,11 @@ def process_frame():
 
     except Exception as e:
         total_ms = (time.perf_counter() - t_start) * 1000
-        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False)
+        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
         print(f"Error processing frame: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":
-    print("FragEngine V0.13 — Active (FragLab Analytics)")
+    print("FragEngine V0.14 — Active (FragLab Analytics)")
     app.run(host="127.0.0.1", port=5000, debug=False)
