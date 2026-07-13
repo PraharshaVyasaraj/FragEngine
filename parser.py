@@ -79,8 +79,12 @@ class FeedParser:
         h, w, _ = img.shape
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
+        import time
+        t_ocr_start = time.perf_counter()
         # Run EasyOCR text detection
         results = self.reader.readtext(img)
+        t_ocr_end = time.perf_counter()
+        ocr_ms = (t_ocr_end - t_ocr_start) * 1000
         
         text_blocks = []
         for res in results:
@@ -111,6 +115,7 @@ class FeedParser:
         else:
             return None # Skip empty/noisy frames
             
+        t_match_start = time.perf_counter()
         # Isolate the horizontal band containing the icons
         icon_band_gray = gray[:, icon_x1:icon_x2]
         _, thresh = cv2.threshold(icon_band_gray, 180, 255, cv2.THRESH_BINARY)
@@ -143,11 +148,17 @@ class FeedParser:
             elif len(extracted_icons) == 1:
                 # Fallback if both merged
                 i2, _ = self.match_icon(extracted_icons[0], ["KNOCK", "FINISH"])
+        t_match_end = time.perf_counter()
+        match_ms = (t_match_end - t_match_start) * 1000
                 
         return {
             "layout": layout,
             "t1": t1,
             "i1": i1,
             "i2": i2,
-            "t2": t2
+            "t2": t2,
+            "_timings": {
+                "ocr": ocr_ms,
+                "icon_match": match_ms
+            }
         }

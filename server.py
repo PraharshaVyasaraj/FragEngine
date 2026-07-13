@@ -9,9 +9,33 @@ import numpy as np
 import base64
 import time
 import difflib
+import sys
+import signal
+import atexit
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from parser import FeedParser
+
+# Setup telemetry collector path
+base_dir = r"E:\Games Data\SAMPLE_IMAGESET_FEED"
+sys.path.append(os.path.join(base_dir, "backend"))
+from telemetry import TelemetryCollector
+
+# Initialize Telemetry
+telemetry = TelemetryCollector(base_dir)
+telemetry.start()
+
+def shutdown_handler(signum, frame):
+    print("\n[SERVER] Shutdown signal received. Exporting telemetry logs...")
+    telemetry.stop()
+    sys.exit(0)
+
+# Hook system signals for CTRL+C (SIGINT) and task cancellation (SIGTERM)
+signal.signal(signal.SIGINT, shutdown_handler)
+signal.signal(signal.SIGTERM, shutdown_handler)
+
+# Register atexit handler to guarantee summary export on any python exit
+atexit.register(telemetry.stop)
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -95,12 +119,14 @@ def clean_and_normalize_name(name):
     V1.2 Soft Dictionary Auto-Corrector and Noise Stripper:
     1. Strip isolated trailing fragments like 'OV', 'ooy', or '[06]'.
     2. Strip anything after a space.
-    3. Split name by common separators (-, ~, _).
+    3. Split name by common separators (-, ~, _, x).
     4. Fuzzy match tag and name separately. Snaps if match confidence >= 85%, else leaves raw.
+    Returns (cleaned_name, corrections_count)
     """
     if not name:
-        return ""
+        return "", 0
 
+    corrections_count = 0
     # Clean leading digits (squad/team numbers)
     name = name.strip()
     name = re.sub(r"^\d+\s+", "", name)
@@ -121,14 +147,22 @@ def clean_and_normalize_name(name):
         
         # Soft match tag (tags are a smaller list, use 80% threshold)
         corrected_tag = correct_word_via_dict(tag_part, team_tags, threshold=0.80)
+        if tag_part and corrected_tag != tag_part.upper():
+            corrections_count += 1
+            
         # Soft match name (names are open-ended, use stricter 85% threshold)
         corrected_name = correct_word_via_dict(name_part, player_names, threshold=0.85)
-        
+        if name_part and corrected_name != name_part.upper():
+            corrections_count += 1
+            
         # Reconstruct normalized string preserving capitalization styling of the separator
-        return f"{corrected_tag}{separator}{corrected_name}"
+        return f"{corrected_tag}{separator}{corrected_name}", corrections_count
     else:
         # No separator: treat the whole string as a name and attempt a soft match
-        return correct_word_via_dict(name, player_names, threshold=0.85)
+        corrected_name = correct_word_via_dict(name, player_names, threshold=0.85)
+        if name and corrected_name != name.upper():
+            corrections_count += 1
+        return corrected_name, corrections_count
 
 
 def is_fuzzy_duplicate(entry1, entry2):
@@ -163,17 +197,29 @@ def is_fuzzy_duplicate(entry1, entry2):
 def process_frame():
     global last_log_entry, log_counter
 
+    t_start = time.perf_counter()
+    stages_ms = {
+        "decode": 0.0,
+        "preprocess": 0.0,
+        "ocr": 0.0,
+        "icon_match": 0.0,
+        "dict_correction": 0.0
+    }
+    dict_hits_count = 0
+
     try:
         data = request.json
         if not data or "image" not in data:
             return jsonify({"status": "error", "message": "Missing image data"}), 400
 
         # Decode base64 JPEG frame
+        t_decode_start = time.perf_counter()
         image_data = data["image"]
         header, encoded = image_data.split(",", 1)
         decoded = base64.b64decode(encoded)
         np_arr = np.frombuffer(decoded, dtype=np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        stages_ms["decode"] = (time.perf_counter() - t_decode_start) * 1000
 
         if img is None:
             return jsonify({"status": "error", "message": "Failed to decode frame"}), 400
@@ -181,37 +227,55 @@ def process_frame():
         # ─────────────────────────────────────────────────────────
         # V1.1 STAGE 1.5: BACKGROUND BRIGHTNESS SANITY CHECK
         # ─────────────────────────────────────────────────────────
+        t_prep_start = time.perf_counter()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         mean_brightness = float(np.mean(gray))
         if mean_brightness > EXPECTED_BG_MAX_BRIGHTNESS:
+            stages_ms["preprocess"] = (time.perf_counter() - t_prep_start) * 1000
+            total_ms = (time.perf_counter() - t_start) * 1000
+            
+            # Log skipped performance
+            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False)
             print(f"[WALL BLOCKED] Bright frame (brightness={mean_brightness:.1f}) — likely UI noise, skipping OCR")
             return jsonify({"status": "skipped", "reason": f"Bright frame: {mean_brightness:.1f}"})
+
+        # 3x Cubic Upscale for OCR legibility
+        img_upscaled = cv2.resize(img, (0, 0), fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+        stages_ms["preprocess"] = (time.perf_counter() - t_prep_start) * 1000
 
         # ─────────────────────────────────────────────────────────
         # V1.2 STAGE 2: OCR + TEMPLATE MATCH PIPELINE
         # ─────────────────────────────────────────────────────────
-
-        # 3x Cubic Upscale for OCR legibility
-        img_upscaled = cv2.resize(img, (0, 0), fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
-
-        # Run Parser
         res = parser.process_frame(img_upscaled)
 
         if res is None:
+            total_ms = (time.perf_counter() - t_start) * 1000
+            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False)
             return jsonify({"status": "skipped", "reason": "Unrecognizable layout"})
+
+        # Retrieve sub-stage timings from parser
+        stages_ms["ocr"] = res.get("_timings", {}).get("ocr", 0.0)
+        stages_ms["icon_match"] = res.get("_timings", {}).get("icon_match", 0.0)
 
         # ─────────────────────────────────────────────────────────
         # V1.2 DATA CLEANING & AUTO-CORRECTION
         # ─────────────────────────────────────────────────────────
-        res["t1"] = clean_and_normalize_name(res.get("t1", "") or "")
-        res["t2"] = clean_and_normalize_name(res.get("t2", "") or "")
+        t_dict_start = time.perf_counter()
+        res["t1"], corrections_1 = clean_and_normalize_name(res.get("t1", "") or "")
+        res["t2"], corrections_2 = clean_and_normalize_name(res.get("t2", "") or "")
+        dict_hits_count = corrections_1 + corrections_2
+        stages_ms["dict_correction"] = (time.perf_counter() - t_dict_start) * 1000
 
         # Minimum name length check (kills transient noise)
         if len(res["t1"]) < MIN_NAME_LENGTH:
+            total_ms = (time.perf_counter() - t_start) * 1000
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False)
             print(f"[WALL BLOCKED] T1 too short: '{res['t1']}'")
             return jsonify({"status": "skipped", "reason": f"T1 too short: {res['t1']}"})
 
         if res["layout"] == "2T2I" and len(res["t2"]) < MIN_NAME_LENGTH:
+            total_ms = (time.perf_counter() - t_start) * 1000
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False)
             print(f"[WALL BLOCKED] T2 too short: '{res['t2']}'")
             return jsonify({"status": "skipped", "reason": f"T2 too short: {res['t2']}"})
 
@@ -239,6 +303,8 @@ def process_frame():
                         cooldown_blocked = True
                         break
             if cooldown_blocked:
+                total_ms = (time.perf_counter() - t_start) * 1000
+                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True)
                 print(f"[WALL BLOCKED] Cooldown block on victim: '{res['t2']}' for action '{res['i2']}'")
                 return jsonify({"status": "duplicate", "reason": f"Victim '{res['t2']}' in cooldown for '{res['i2']}'"})
 
@@ -253,6 +319,8 @@ def process_frame():
             res["t2"] or ""
         )
         if last_log_entry and is_fuzzy_duplicate(candidate_entry, last_log_entry):
+            total_ms = (time.perf_counter() - t_start) * 1000
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True)
             print(f"[WALL BLOCKED] Fuzzy duplicate match: {res['t1']} -> {res['t2']}")
             return jsonify({"status": "duplicate"})
 
@@ -269,6 +337,8 @@ def process_frame():
         with open(ql_path, "a", encoding="utf-8") as f:
             f.write(log_line)
 
+        total_ms = (time.perf_counter() - t_start) * 1000
+        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False)
         print(f"[WALL PASSED] Logged: {log_line.strip()}")
 
         response_data = {
@@ -280,10 +350,12 @@ def process_frame():
         return jsonify(response_data)
 
     except Exception as e:
+        total_ms = (time.perf_counter() - t_start) * 1000
+        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False)
         print(f"Error processing frame: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":
-    print("FragEngine V0.12 — Active (FragLab Analytics)")
+    print("FragEngine V0.13 — Active (FragLab Analytics)")
     app.run(host="127.0.0.1", port=5000, debug=False)

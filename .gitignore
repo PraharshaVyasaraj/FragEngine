@@ -33,3 +33,6 @@ debug_*.png
 QL.csv
 telemetry_logs.csv
 *.log
+
+# Match session telemetry folders
+data/
