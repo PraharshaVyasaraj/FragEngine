@@ -237,7 +237,7 @@ def process_frame():
             total_ms = (time.perf_counter() - t_start) * 1000
             
             # Log skipped performance
-            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0)
+            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped")
             print(f"[WALL BLOCKED] Bright frame (brightness={mean_brightness:.1f}) — likely UI noise, skipping OCR")
             return jsonify({"status": "skipped", "reason": f"Bright frame: {mean_brightness:.1f}"})
 
@@ -254,7 +254,7 @@ def process_frame():
             if res and "_timings" in res:
                 stages_ms["ocr"] = res["_timings"].get("ocr", 0.0)
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0)
+            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped")
             return jsonify({"status": "skipped", "reason": "Unrecognizable layout"})
 
         # Retrieve sub-stage timings and confidence from parser
@@ -284,13 +284,13 @@ def process_frame():
         # Minimum name length check (kills transient noise)
         if len(res["t1"]) < MIN_NAME_LENGTH:
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
             print(f"[WALL BLOCKED] T1 too short: '{res['t1']}'")
             return jsonify({"status": "skipped", "reason": f"T1 too short: {res['t1']}"})
 
         if res["layout"] == "2T2I" and len(res["t2"]) < MIN_NAME_LENGTH:
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
             print(f"[WALL BLOCKED] T2 too short: '{res['t2']}'")
             return jsonify({"status": "skipped", "reason": f"T2 too short: {res['t2']}"})
 
@@ -319,7 +319,7 @@ def process_frame():
                         break
             if cooldown_blocked:
                 total_ms = (time.perf_counter() - t_start) * 1000
-                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
+                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
                 print(f"[WALL BLOCKED] Cooldown block on victim: '{res['t2']}' for action '{res['i2']}'")
                 return jsonify({"status": "duplicate", "reason": f"Victim '{res['t2']}' in cooldown for '{res['i2']}'"})
 
@@ -335,7 +335,7 @@ def process_frame():
         )
         if last_log_entry and is_fuzzy_duplicate(candidate_entry, last_log_entry):
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
             print(f"[WALL BLOCKED] Fuzzy duplicate match: {res['t1']} -> {res['t2']}")
             return jsonify({"status": "duplicate"})
 
@@ -353,7 +353,7 @@ def process_frame():
             f.write(log_line)
 
         total_ms = (time.perf_counter() - t_start) * 1000
-        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
+        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="logged")
         print(f"[WALL PASSED] Logged: {log_line.strip()}")
 
         response_data = {
@@ -366,7 +366,7 @@ def process_frame():
 
     except Exception as e:
         total_ms = (time.perf_counter() - t_start) * 1000
-        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist)
+        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="error")
         print(f"Error processing frame: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
