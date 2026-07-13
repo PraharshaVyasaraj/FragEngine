@@ -120,7 +120,16 @@ function startCalibration() {
       y2_ratio: y2 / selectCanvas.height
     };
     
-    // Send draft coordinates to Side Panel in real-time
+    // AUTO-LOCK: Persist ROI to storage immediately so ingestion always uses the drawn ROI
+    chrome.storage.local.set({ roi: roiCoords });
+    
+    // Notify background worker and side panel that ROI is locked
+    chrome.runtime.sendMessage({
+      action: "calibration-locked",
+      roi: roiCoords
+    }).catch(() => {});
+    
+    // Also send as draft so the Side Panel UI updates the Lock button state
     chrome.runtime.sendMessage({
       action: "calibration-draft",
       roi: roiCoords
@@ -135,6 +144,9 @@ function startCalibration() {
         status: "skipped" // skipped means no database write, just a preview
       }).catch(() => {});
     }
+    
+    // Auto-close the calibration overlay after a brief delay so the user sees the preview
+    setTimeout(() => removeCalibrationOverlay(), 300);
   });
   
   document.body.appendChild(overlayDiv);

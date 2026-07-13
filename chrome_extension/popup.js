@@ -205,11 +205,14 @@ chrome.runtime.onMessage.addListener((message) => {
   } 
   else if (message.action === "calibration-draft") {
     draftRoiCoords = message.roi;
-    btnLock.disabled = false;
-    btnLock.style.backgroundColor = "#d35400"; // Light up copper accent
-    btnLock.style.borderColor = "#d35400";
-    lblLayout.innerText = "ROI DRAWN (UNLOCKED)";
-    lblLayout.style.color = "#bfa15f";
+    // If ROI was auto-locked by content.js, also update the main roiCoords
+    roiCoords = message.roi;
+    btnLock.disabled = true;
+    btnLock.style.backgroundColor = "#8a4b08";
+    btnLock.style.borderColor = "#8a4b08";
+    btnStart.disabled = false;
+    lblLayout.innerText = "ROI AUTO-LOCKED";
+    lblLayout.style.color = "#00e676";
   }
   else if (message.action === "frame-previews") {
     renderRawPreview(message.raw);
