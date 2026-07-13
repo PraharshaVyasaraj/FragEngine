@@ -1,3 +1,13 @@
+/**
+ * FragEngine V0.14 — Content Script
+ * 
+ * V0.14 Architecture Change:
+ * - Removed fixed 30FPS capture loop
+ * - grabFrame() now returns ImageData alongside dataUrl for feed detection
+ * - SamplingEngine controls when frames are captured
+ * - Calibration overlay with auto-lock on mouseup
+ */
+
 let videoElement = null;
 let overlayDiv = null;
 let selectCanvas = null;
@@ -6,8 +16,14 @@ let startX = 0, startY = 0;
 let isDragging = false;
 let roiCoords = null; // Proportional coordinates
 
+let prevFrameGray = null;
+
 function findVideo() {
   return document.querySelector("video");
+}
+
+function getROI() {
+  return roiCoords;
 }
 
 function startCalibration() {
@@ -120,32 +136,31 @@ function startCalibration() {
       y2_ratio: y2 / selectCanvas.height
     };
     
-    // AUTO-LOCK: Persist ROI to storage immediately so ingestion always uses the drawn ROI
+    // AUTO-LOCK: Persist ROI to storage immediately
     chrome.storage.local.set({ roi: roiCoords });
     
-    // Notify background worker and side panel that ROI is locked
+    // Notify background worker and side panel
     chrome.runtime.sendMessage({
       action: "calibration-locked",
       roi: roiCoords
     }).catch(() => {});
     
-    // Also send as draft so the Side Panel UI updates the Lock button state
     chrome.runtime.sendMessage({
       action: "calibration-draft",
       roi: roiCoords
     }).catch(() => {});
     
-    // Grab a single preview frame and send it so it renders inside the Side Panel immediately!
+    // Preview frame
     const frameRes = grabFrame(roiCoords);
     if (frameRes && !frameRes.error) {
       chrome.runtime.sendMessage({
         action: "frame-previews",
         raw: frameRes.dataUrl,
-        status: "skipped" // skipped means no database write, just a preview
+        status: "skipped"
       }).catch(() => {});
     }
     
-    // Auto-close the calibration overlay after a brief delay so the user sees the preview
+    // Auto-close overlay
     setTimeout(() => removeCalibrationOverlay(), 300);
   });
   
@@ -161,8 +176,13 @@ function removeCalibrationOverlay() {
   document.body.style.overflow = "";
 }
 
-let prevFrameGray = null;
-
+/**
+ * Grab a single frame from the video element at the specified ROI.
+ * V0.14: Now returns ImageData for FeedDetector alongside dataUrl and pixel diff.
+ * 
+ * @param {Object} roi — { x1_ratio, y1_ratio, x2_ratio, y2_ratio }
+ * @returns {Object} { dataUrl, imageData, hasChanged, meanDiff }
+ */
 function grabFrame(roi) {
   videoElement = findVideo();
   if (!videoElement) {
@@ -191,14 +211,15 @@ function grabFrame(roi) {
   const canvas = document.createElement("canvas");
   canvas.width = cropW;
   canvas.height = cropH;
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   
   ctx.drawImage(videoElement, vx1, vy1, cropW, cropH, 0, 0, cropW, cropH);
   
-  const imgData = ctx.getImageData(0, 0, cropW, cropH);
-  const pixels = imgData.data;
+  // Get ImageData for FeedDetector (V0.14)
+  const imageData = ctx.getImageData(0, 0, cropW, cropH);
+  const pixels = imageData.data;
   
-  // Convert current frame to grayscale
+  // Convert current frame to grayscale for pixel diff
   const len = pixels.length;
   const currentGray = new Uint8Array(len / 4);
   let idx = 0;
@@ -207,16 +228,18 @@ function grabFrame(roi) {
   }
   
   let hasChanged = false;
+  let meanDiff = 0;
   if (!prevFrameGray || prevFrameGray.length !== currentGray.length) {
     hasChanged = true;
+    meanDiff = 255; // First frame always counts as changed
   } else {
     let sumDiff = 0;
     const numPixels = currentGray.length;
     for (let i = 0; i < numPixels; i++) {
       sumDiff += Math.abs(currentGray[i] - prevFrameGray[i]);
     }
-    const meanDiff = sumDiff / numPixels;
-    if (meanDiff >= 8.0) { // Keep same 8.0 threshold as V1.1
+    meanDiff = sumDiff / numPixels;
+    if (meanDiff >= 8.0) {
       hasChanged = true;
     }
   }
@@ -224,8 +247,11 @@ function grabFrame(roi) {
   prevFrameGray = currentGray;
   
   const dataUrl = canvas.toDataURL("image/jpeg", 0.90);
-  return { dataUrl: dataUrl, hasChanged: hasChanged };
+  return { dataUrl, imageData, hasChanged, meanDiff: Math.round(meanDiff * 100) / 100 };
 }
+
+// Initialize Sampling Engine with references to our functions
+SamplingEngine.init(grabFrame, getROI);
 
 // Message Listener
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -245,15 +271,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const res = grabFrame(message.roi);
     sendResponse(res);
   }
+  else if (message.action === "start-sampling") {
+    // V0.14: Start the sampling engine (Normal mode)
+    if (message.roi) {
+      roiCoords = message.roi;
+    }
+    SamplingEngine.start();
+    sendResponse({ status: "sampling_started" });
+  }
+  else if (message.action === "stop-sampling") {
+    SamplingEngine.stop();
+    prevFrameGray = null;
+    sendResponse({ status: "sampling_stopped" });
+  }
+  else if (message.action === "get-diagnostics") {
+    sendResponse({
+      engine: SamplingEngine.getDiagnostics(),
+      detector: FeedDetector.getDiagnostics(),
+      scheduler: TransmissionScheduler.getDiagnostics()
+    });
+  }
   return true;
 });
 
-// Auto-start capture if "alwaysOn" is enabled
+// Auto-start if alwaysOn
 function checkAutoStart() {
   const video = findVideo();
   if (video) {
     chrome.storage.local.get(["roi", "alwaysOn"], (result) => {
       if (result.alwaysOn && result.roi) {
+        roiCoords = result.roi;
+        SamplingEngine.start();
         chrome.runtime.sendMessage({
           action: "auto-start-capture",
           roi: result.roi
@@ -268,6 +316,8 @@ function checkAutoStart() {
         clearInterval(interval);
         chrome.storage.local.get(["roi", "alwaysOn"], (result) => {
           if (result.alwaysOn && result.roi) {
+            roiCoords = result.roi;
+            SamplingEngine.start();
             chrome.runtime.sendMessage({
               action: "auto-start-capture",
               roi: result.roi

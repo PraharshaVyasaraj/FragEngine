@@ -282,7 +282,7 @@ function renderRawPreview(dataUrl) {
 
     canvasBin.width = img.width;
     canvasBin.height = img.height;
-    const ctxBin = canvasBin.getContext("2d");
+    const ctxBin = canvasBin.getContext("2d", { willReadFrequently: true });
     ctxBin.drawImage(img, 0, 0);
     const imgData = ctxBin.getImageData(0, 0, canvasBin.width, canvasBin.height);
     const data = imgData.data;
