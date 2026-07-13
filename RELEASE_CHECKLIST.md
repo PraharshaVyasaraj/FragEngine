@@ -87,9 +87,10 @@ During every major or minor update (e.g. V0.14.2 -> V0.14.3), the following pipe
 ### 🏷️ Step 4: Version Control & Version Bump
 - [ ] Update version in `chrome_extension/manifest.json`.
 - [ ] Append version history details to `version_history/v0.14_history.md` (or the relevant active cycle).
-- [ ] Update `DEV_NOTE.md` with:
-  - Date and version number.
-  - Telemetry summary benchmark metrics from the validation run.
+- [ ] Update `DEV_NOTE.md` specifically in a **Fireship style** (brutal-honesty, high-impact, code-focused, punchy, highlighting actual performance gaps vs target limits, no corporate jargon or fluff, visual tables, and clear hardware metrics comparison).
+  - Include date and version number.
+  - Detail telemetry summary benchmark metrics from the validation run.
+
 
 ### 🚀 Step 5: Git Commit & Push
 - [ ] Run `git status` and verify that only intended files are changed.
