@@ -1,6 +1,6 @@
 # FragEngine Maintenance & Release Operations Guide
 
-This document outlines the directory structure and the mandatory checklist that must be executed during every major and minor update of the FragEngine repository.
+This document outlines the directory structure, technology stack, user interactions, data pipelines, and the mandatory checklist that must be executed during every major and minor update of the FragEngine repository.
 
 ---
 
@@ -42,7 +42,8 @@ FragEngine/
 │
 ├── server.py                       # Flask server engine endpoint
 ├── parser.py                       # EasyOCR & template matching pipeline
-└── DEV_NOTE.md                     # Brutal honesty dev notes & performance baselines
+├── DEV_NOTE.md                     # Brutal honesty dev notes & performance baselines
+└── RELEASE_CHECKLIST.md            # This operational guide
 ```
 
 ---
@@ -91,7 +92,6 @@ During every major or minor update (e.g. V0.14.2 -> V0.14.3), the following pipe
   - Include date and version number.
   - Detail telemetry summary benchmark metrics from the validation run.
 
-
 ### 🚀 Step 5: Git Commit & Push
 - [ ] Run `git status` and verify that only intended files are changed.
 - [ ] Stage all modifications (`git add .`).
@@ -100,3 +100,94 @@ During every major or minor update (e.g. V0.14.2 -> V0.14.3), the following pipe
   git commit -m "feat(v0.14.x): brief description"
   ```
 - [ ] Push to `origin main`.
+
+---
+
+## 3. Technology Stack Specification
+
+* **Chrome Extension Module (Frontend)**:
+  * **Core**: Vanilla JavaScript (ES6, asynchronous loops, Event Listeners).
+  * **Markup & Style**: HTML5 & Vanilla CSS3 (custom glassmorphism style rules, grid layouts, dark mode accent palettes).
+  * **Extension Framework**: Chrome Manifest V3 APIs (`chrome.runtime` messaging, `chrome.tabs`, Side Panel API, Content Scripts injection).
+  * **Visuals**: HTML5 Canvas 2D Context (`willReadFrequently: true` optimized for rapid `getImageData` pixel reads).
+* **Flask Server Module (Backend)**:
+  * **Engine**: Python 3.10+, Flask REST API (lightweight HTTP handlers, endpoint routing).
+* **Computer Vision & ML Pipeline**:
+  * **OCR Engine**: EasyOCR (PyTorch-based, AOT compiled on first execution).
+  * **Image Manipulation**: OpenCV-Python (`cv2` for cubic 3x resizing, binarization, grayscale mapping, template matching).
+  * **Fuzzy Matching**: Standard library `difflib` (SequenceMatcher) + `python-Levenshtein` (high-speed edit distance checks).
+* **System Sampling & Hardware Metrics**:
+  * **Process telemetry**: `psutil` (thread count, voluntary/involuntary context switches, memory rss).
+  * **Native GPU telemetry**: Windows COM API (`pythoncom` + `win32com.client`) querying WMI performance counters (`Win32_PerfRawData_PerfOS_Processor`, `Win32_PerfRawData_IntelGraphics_IntelGraphicsGraphicsCurrentLimits`).
+
+---
+
+## 4. User Interaction Flow
+
+```mermaid
+graph TD
+    A[User opens BGMI/PUBG Stream in Chrome] --> B[Clicks FragEngine Extension Icon]
+    B --> C[Side Panel Diagnostics Interface Opens]
+    C --> D[Clicks Calibrate - Locks Crop Coordinates ROI]
+    D --> E[Clicks Start Ingest / Always Ingest]
+    E --> F[Plays/Spectates Match]
+    F --> G[Real-Time Live Canvas Preview Shows RAW vs BIN MASK]
+    F --> H[Diagnostics Counters Increment FPS/Throughput]
+    F --> I[Quality Log Table Appends Parsed Events]
+    J[Match Concludes] --> K[Clicks Stop Ingest]
+    K --> L[Clicks Export CSV - Exports Telemetry Data]
+```
+
+---
+
+## 5. System Data Pipeline Workflow
+
+Every frame captured is routed through this step-by-step logic gate:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Browser as Content Script (Canvas)
+    participant Detector as feed_detector.js (CV Gate)
+    participant Scheduler as transmission_scheduler.js
+    participant Server as server.py (Flask)
+    participant Parser as parser.py (EasyOCR)
+    participant DB as QL.csv & Telemetry.csv
+
+    loop Sampling Loop (400ms Normal / 200ms Rapid)
+        Browser->>Detector: Grab crop ROI pixel data (ImageData)
+        Detector->>Detector: Convert to grayscale Luma + threshold at 180
+        Detector->>Detector: Calculate white pixel density (Ratio)
+        alt Ratio is between 3% and 30%
+            Detector-->>Browser: Feed Present = YES
+            Browser->>Browser: Enter Rapid Mode (200ms) & Lock for 1.5s
+            Browser->>Scheduler: Evaluate frame
+            alt Send Interval >= 800ms
+                Scheduler->>Server: HTTP POST (Base64 JPG image)
+            else Throttled
+                Scheduler-->>Browser: Drop frame (prevent server overload)
+            end
+        else Empty Dark Background (<3% or >30%)
+            Detector-->>Browser: Feed Present = NO
+            alt Cooldown Lock Expired (>1.5s)
+                Browser->>Browser: Drop back to Normal Mode (400ms)
+            end
+        end
+    end
+
+    Note over Server,Parser: Frame Received
+    Server->>Server: Run average brightness sanity check (limit 45.0)
+    Server->>Parser: Upscale 3x (Cubic) & Run EasyOCR
+    Parser->>Parser: Parse left-to-right text blocks (Layout verification: 1T2I or 2T2I)
+    Parser->>Parser: Isolate weapon band & Run template match (KNOCK, FINISH, ZONE)
+    Parser-->>Server: Return layout status, raw texts, and sub-stage timings
+    Server->>Server: Run dictionary auto-correction (Levenshtein)
+    Server->>Server: Check victim cooldown locks (3.5s) & fuzzy deduplication (difflib 0.82)
+    alt Approved Log
+        Server->>DB: Append event to QL.csv
+        Server->>DB: Log metrics to telemetry CSV (status="logged")
+    else Skipped / Duplicate / Error
+        Server->>DB: Log metrics to telemetry CSV (status="skipped"/"duplicate"/"error")
+    end
+    Server-->>Scheduler: HTTP 200 Response
+```
