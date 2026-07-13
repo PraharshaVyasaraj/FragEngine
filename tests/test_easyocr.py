@@ -1,6 +1,11 @@
 import easyocr
 import cv2
 import os
+import pytest
+
+# Skip in CI since it depends on local gitignored assets
+if os.environ.get("GITHUB_ACTIONS") == "true":
+    pytest.skip("Skipping local integration tests in CI environment", allow_module_level=True)
 
 images = [
     "SAMPLE_ZONE_FINISH_1T2I.png",

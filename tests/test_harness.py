@@ -1,6 +1,12 @@
 import os
 import cv2
 import sys
+import pytest
+
+# Skip in CI since it depends on local gitignored assets
+if os.environ.get("GITHUB_ACTIONS") == "true":
+    pytest.skip("Skipping local integration tests in CI environment", allow_module_level=True)
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from parser import FeedParser
 

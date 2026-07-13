@@ -2,6 +2,11 @@ import cv2
 import numpy as np
 import os
 import easyocr
+import pytest
+
+# Skip in CI since it depends on local gitignored assets
+if os.environ.get("GITHUB_ACTIONS") == "true":
+    pytest.skip("Skipping local integration tests in CI environment", allow_module_level=True)
 
 # Setup paths
 base_dir = r"E:\Games Data\SAMPLE_IMAGESET_FEED"
