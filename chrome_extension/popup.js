@@ -304,17 +304,24 @@ btnExport.addEventListener("click", () => {
   chrome.runtime.sendMessage({ action: "get-status" }, (response) => {
     if (!response || response.logs.length === 0) return;
     
-    let csvContent = "data:text/csv;charset=utf-8,Log #,Layout Type,T1,I1,I2,T2\n";
+    let csvContent = "Log #,Layout Type,T1,I1,I2,T2\n";
     response.logs.forEach(log => {
-      csvContent += `${log.log_num},${log.layout},${log.t1},${log.i1},${log.i2},${log.t2}\n`;
+      // Wrap each field in quotes to safely handle commas in player names
+      csvContent += `"${log.log_num}","${log.layout}","${log.t1}","${log.i1}","${log.i2}","${log.t2}"\n`;
     });
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "telemetry_logs.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blobUrl = URL.createObjectURL(blob);
+
+    const now = new Date();
+    const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+
+    chrome.downloads.download({
+      url: blobUrl,
+      filename: `FragEngine_QL_${ts}.csv`,
+      saveAs: false
+    }, () => {
+      URL.revokeObjectURL(blobUrl);
+    });
   });
 });
