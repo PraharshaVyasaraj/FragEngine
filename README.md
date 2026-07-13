@@ -55,7 +55,7 @@ pip install -r requirements.txt
 ### 2. Run the Telemetry Server
 Open a terminal window and start the Flask engine:
 ```bash
-cd "E:\Games Data\SAMPLE_IMAGESET_FEED"
+cd FragEngine
 $env:PYTHONIOENCODING="utf-8"; python server.py
 ```
 
@@ -71,9 +71,9 @@ $env:PYTHONIOENCODING="utf-8"; python server.py
 
 We maintain explicit releases using Git tags. The version history log is preserved inside the `version_history/` directory:
 
--   **V0.1** ([v0.1_history.md](file:///E:/Games%20Data/SAMPLE_IMAGESET_FEED/version_history/v0.1_history.md)): Initial release.
--   **V0.11** ([v0.11_history.md](file:///E:/Games%20Data/SAMPLE_IMAGESET_FEED/version_history/v0.11/v0.11_history.md)): Stage 1 Python diff gate & 30 FPS pipeline.
--   **V0.12** ([v0.12_history.md](file:///E:/Games%20Data/SAMPLE_IMAGESET_FEED/version_history/v0.12/v0.12_history.md)): High-performance browser diff gate & dictionary correction.
+-   **V0.1** ([v0.1_history.md](version_history/v0.1_history.md)): Initial release.
+-   **V0.11** ([v0.11_history.md](version_history/v0.11_history.md)): Stage 1 Python diff gate & 30 FPS pipeline.
+-   **V0.12** ([v0.12_history.md](version_history/v0.12_history.md)): High-performance browser diff gate & dictionary correction.
 
 To inspect tag releases:
 ```bash

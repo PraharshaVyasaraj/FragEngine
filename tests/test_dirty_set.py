@@ -1,6 +1,8 @@
 import os
 import cv2
 import numpy as np
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from parser import FeedParser
 
 def main():
