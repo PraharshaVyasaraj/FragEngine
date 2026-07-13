@@ -111,8 +111,8 @@ def clean_and_normalize_name(name):
     # Strip anything after a space (clan tags/status icons read as space-delimited text)
     name = name.split(" ")[0].strip()
 
-    # Split by standard separators: - or ~ or _
-    parts = re.split(r"([-~_])", name, maxsplit=1)
+    # Split by standard separators: - or ~ or _ or x
+    parts = re.split(r"([-~_x])", name, maxsplit=1)
     
     if len(parts) >= 3:
         tag_part = parts[0]

@@ -100,34 +100,40 @@ function startCalibration() {
     const curX = e.clientX - r.left;
     const curY = e.clientY - r.top;
     
-    const x1 = Math.min(startX, curX);
-    const y1 = Math.min(startY, curY);
-    const x2 = Math.max(startX, curX);
-    const y2 = Math.max(startY, curY);
+    let x1 = Math.min(startX, curX);
+    let y1 = Math.min(startY, curY);
+    let x2 = Math.max(startX, curX);
+    let y2 = Math.max(startY, curY);
     
-    if ((x2 - x1) > 10 && (y2 - y1) > 10) {
-      roiCoords = {
-        x1_ratio: x1 / selectCanvas.width,
-        y1_ratio: y1 / selectCanvas.height,
-        x2_ratio: x2 / selectCanvas.width,
-        y2_ratio: y2 / selectCanvas.height
-      };
-      
-      // Send draft coordinates to Side Panel in real-time
+    // If the drag area is too small (e.g. a single click), auto-create a 240x24 box centered on the click
+    if ((x2 - x1) <= 10 || (y2 - y1) <= 10) {
+      x1 = Math.max(0, startX - 120);
+      y1 = Math.max(0, startY - 12);
+      x2 = Math.min(selectCanvas.width, startX + 120);
+      y2 = Math.min(selectCanvas.height, startY + 12);
+    }
+    
+    roiCoords = {
+      x1_ratio: x1 / selectCanvas.width,
+      y1_ratio: y1 / selectCanvas.height,
+      x2_ratio: x2 / selectCanvas.width,
+      y2_ratio: y2 / selectCanvas.height
+    };
+    
+    // Send draft coordinates to Side Panel in real-time
+    chrome.runtime.sendMessage({
+      action: "calibration-draft",
+      roi: roiCoords
+    }).catch(() => {});
+    
+    // Grab a single preview frame and send it so it renders inside the Side Panel immediately!
+    const frameRes = grabFrame(roiCoords);
+    if (frameRes && !frameRes.error) {
       chrome.runtime.sendMessage({
-        action: "calibration-draft",
-        roi: roiCoords
+        action: "frame-previews",
+        raw: frameRes.dataUrl,
+        status: "skipped" // skipped means no database write, just a preview
       }).catch(() => {});
-      
-      // Grab a single preview frame and send it so it renders inside the Side Panel immediately!
-      const frameRes = grabFrame(roiCoords);
-      if (frameRes && !frameRes.error) {
-        chrome.runtime.sendMessage({
-          action: "frame-previews",
-          raw: frameRes.dataUrl,
-          status: "skipped" // skipped means no database write, just a preview
-        }).catch(() => {});
-      }
     }
   });
   
