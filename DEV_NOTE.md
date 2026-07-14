@@ -405,8 +405,36 @@ Under V0.14.2, we achieved a **9.2x increase in unique logged events (102 vs 11)
   * RAM: avg 716.5 MB, peak 839.2 MB
   * GPU: avg 17.0%, peak 39.0%
 
+## V0.14.3 Ingestion Summary (SESSION_0014 Telemetry Run)
+* **Date**: 2026-07-14
+* **Model version**: V0.14.3 (Client-side similarity gate, 400ms temporal limiter, server threading lock, and 20px padding)
+* **Game Target**: Scarfall (SF Feed Icons)
+* **Ingestion duration**: 4.67 minutes (active ingest window)
+* **Total server requests**: 120 (reduced by 53.6% from V0.14.2 run rates due to client-side suppression)
+* **Effective Ingestion Rate**: 0.4287 FPS
+* **Total unique events logged**: 103 (duplicates blocked by server: 17)
+* **Average OCR confidence**: 77.08%
+* **Average Levenshtein distance**: 1.0
+* **Average Latencies**:
+  * Decode: 0.25 ms
+  * Preprocess: 0.54 ms
+  * OCR: 333.95 ms (queue latency reduced due to 53% fewer requests)
+  * Icon Match: 0.33 ms
+  * Dict Correction: 1.67 ms
+  * **Total Latency**: 337.10 ms
+* **Hardware overhead**:
+  * CPU: avg 12.8%, peak 100.0% (down from 23.1% in V0.14.2 — a **44.5% drop in average server CPU load**)
+  * RAM: avg 864.4 MB, peak 1126.1 MB
+  * GPU: avg 12.7%, peak 27.0%
+
+### The V0.14.3 Duplicate & Concurrency Breakthrough:
+Under V0.14.3, we solved the parallel request race condition and drastically optimized backend compute requirements:
+* **Client-Side Similarity Gate**: The 95% binarized similarity gate successfully blocked redundant frames in Chrome, reducing server requests from ~260 down to 120. Server-side duplicate detections dropped from 157 to 17, and average CPU load fell by 44.5%.
+* **Server Threading Locks**: Concurrent overlapping requests at the exact same second are fully synchronized via `server_lock`.
+* **400ms Rate Limiter**: Successfully blocked sub-400ms transient crop noise without colliding teammate knocks.
+
 ---
 
 *Dev Note updated: 2026-07-14 | Author: Antigravity AI (Tech Lead, FragLab)*
-*Next update: Post V0.14.3 validation & V0.15 iGPU acceleration*
+*Next update: V0.15 iGPU OpenVINO acceleration*
 
