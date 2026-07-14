@@ -20,33 +20,34 @@ While the backend is verified by automated Headless CI suites, the client-side d
 
 ```mermaid
 graph TD
-    subgraph "Browser Context (Chrome Extension)"
-        A[HTML5 Video Element] -->|Sampling Loop: 1s Idle / 750ms Normal / 500ms Rush| B(diagnostic Preview Canvas)
-        A -->|Grayscale Binarization CV Gate| C{White Pixel Density 3%-30%}
-        C -->|Below 3% or Above 30%| D[Skip / Maintain Mode]
-        C -->|Within Range| E[Accelerate to 500ms Rush Mode]
-        E -->|Evaluate Transmission| F{Client Similarity Check}
-        F -->|Binarized Similarity >= 95%| G[Suppress Duplicate Frame]
-        F -->|Binarized Similarity < 95%| H[Send Base64 JPEG]
+    subgraph "Browser Context"
+        A["HTML5 Video Element"] -->|Sampling Loop| B["Diagnostic Preview Canvas"]
+        A -->|Grayscale Binarization CV Gate| C{"White Pixel Density 3% - 30%"}
+        C -->|Outside Range| D["Skip / Maintain Mode"]
+        C -->|Within Range| E["Accelerate to 500ms Rush Mode"]
+        E -->|Evaluate Transmission| F{"Client Similarity Check"}
+        F -->|Similarity >= 95%| G["Suppress Duplicate Frame"]
+        F -->|Similarity < 95%| H["Send Base64 JPEG"]
     end
 
-    subgraph "Backend Context (Flask Server)"
-        H -->|HTTP POST| I[Decode Image]
-        I --> J{Brightness Check < 45.0}
-        J -->|Bright UI Bleed| K[Block Frame]
-        J -->|Dark Feed BG| L[3x Cubic Upscale]
-        L --> M[EasyOCR Text Extraction]
-        M --> N[OpenCV Template Matching]
-        N --> O{Server Lock Synchronization}
-        O --> P[Data Correction & Levenshtein Distance]
-        P --> Q{400ms Temporal Rate Limiter}
-        Q -->|< 400ms since last log| R[Block Frame]
-        Q -->|>= 400ms| S{Last-Log Fuzzy Deduplication}
-        S -->|Fuzzy victim match within 5s| T[Block Duplicate]
-        S -->|Approved| U[Update last_log_entry & last_log_time]
-        U --> V[Append to QL.csv]
+    subgraph "Backend Context"
+        H -->|HTTP POST| I["Decode Image"]
+        I --> J{"Brightness Check < 45.0"}
+        J -->|Bright UI Bleed| K["Block Frame"]
+        J -->|Dark Feed BG| L["3x Cubic Upscale"]
+        L --> M["PaddleOCR Text Extraction"]
+        M --> N["OpenCV Template Matching"]
+        N --> O{"Server Lock Synchronization"}
+        O --> P["Data Correction & Levenshtein Distance"]
+        P --> Q{"Rate Limiter"}
+        Q -->|Blocked| R["Block Frame"]
+        Q -->|Approved| S{"Last-Log Fuzzy Deduplication"}
+        S -->|Fuzzy Match| T["Block Duplicate"]
+        S -->|Approved| U["Update Log State"]
+        U --> V["Append to QL.csv"]
     end
 ```
+
 
 ---
 
