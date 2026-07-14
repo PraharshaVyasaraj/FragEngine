@@ -11,9 +11,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from parser import FeedParser
 
 # Setup paths
-base_dir = r"E:\Games Data\SAMPLE_IMAGESET_FEED"
+base_dir = r"C:\FragEngine"
 samples_dir = os.path.join(base_dir, "TRANING_FEED_SAMPLE")
-icons_dir = r"E:\Games Data\SF FEED ICONS"
+icons_dir = r"C:\FragEngine\icons"
 
 def test_feed_parser():
     parser = FeedParser(icons_dir)
@@ -39,6 +39,10 @@ def test_feed_parser():
             assert res["layout"] == "2T2I"
             assert res["i1"] == "Weapon"
             assert res["i2"] == "KNOCK"
+        elif img_name == "SAMPLE_FIST_FINISH_2T2I.png":
+            assert res["layout"] == "2T2I"
+            assert res["i1"] == "FIST"
+            assert res["i2"] == "FINISH"
 
 if __name__ == "__main__":
     test_feed_parser()

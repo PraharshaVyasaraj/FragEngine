@@ -66,7 +66,7 @@ class FeedParser:
         add_template("ZONE", zone_path)
             
         # Load Grenade (THROWABLES/NADE.png)
-        nade_path = os.path.join(self.icons_dir, "WEAPONS", "THROWABLES", "NADE.png")
+        nade_path = os.path.join(self.icons_dir, "THROWABLES", "NADE.png")
         add_template("GRENADE", nade_path)
             
         # Load Vehicles (EV, Taxi, Ferry, Helicopter)
@@ -75,6 +75,10 @@ class FeedParser:
             for filename in os.listdir(vehicles_dir):
                 if filename.endswith(".png"):
                     add_template("VEHICLE", os.path.join(vehicles_dir, filename))
+                    
+        # Load Fist (MELEE/MELEE INGAME SS/FIST.png)
+        fist_path = os.path.join(self.icons_dir, "MELEE", "MELEE INGAME SS", "FIST.png")
+        add_template("FIST", fist_path)
 
     def match_icon(self, crop_binary, candidate_names):
         best_score = -1
@@ -84,11 +88,30 @@ class FeedParser:
         for name in candidate_names:
             tpl_list = self.templates.get(name, [])
             for tpl_tight in tpl_list:
-                # Resize template to crop shape
-                tpl_resized = cv2.resize(tpl_tight, (cw, ch))
+                th, tw = tpl_tight.shape
+                
+                # Scale template preserving original aspect ratio
+                scale = min(cw / tw, ch / th)
+                new_w = max(1, int(tw * scale))
+                new_h = max(1, int(th * scale))
+                
+                tpl_resized = cv2.resize(tpl_tight, (new_w, new_h))
                 _, tpl_binary = cv2.threshold(tpl_resized, 127, 255, cv2.THRESH_BINARY)
-                    
-                res = cv2.matchTemplate(crop_binary, tpl_binary, cv2.TM_CCOEFF_NORMED)
+                
+                # Center-pad the template to match the target crop dimensions exactly
+                pad_y = (ch - new_h) // 2
+                pad_bottom = ch - new_h - pad_y
+                pad_x = (cw - new_w) // 2
+                pad_right = cw - new_w - pad_x
+                
+                tpl_padded = cv2.copyMakeBorder(
+                    tpl_binary, 
+                    pad_y, pad_bottom, pad_x, pad_right, 
+                    cv2.BORDER_CONSTANT, 
+                    value=0
+                )
+                
+                res = cv2.matchTemplate(crop_binary, tpl_padded, cv2.TM_CCOEFF_NORMED)
                 _, max_val, _, _ = cv2.minMaxLoc(res)
                 
                 if max_val > best_score:
@@ -170,7 +193,9 @@ class FeedParser:
         icon_crops = []
         for c in contours:
             x, y, cw, ch = cv2.boundingRect(c)
-            if cw > 5 and ch > 5:
+            # Standard game HUD icons (weapons, states, zone) are at least 12x12 pixels.
+            # Discard smaller background noise contours.
+            if cw >= 12 and ch >= 12:
                 crop = thresh[y:y+ch, x:x+cw]
                 icon_crops.append((x, crop))
                 
@@ -187,8 +212,8 @@ class FeedParser:
                 state_crop = extracted_icons[1]
                 
                 # Match action icon against special categories
-                match_name, match_score = self.match_icon(action_crop, ["GRENADE", "VEHICLE"])
-                if match_score >= 0.60:
+                match_name, match_score = self.match_icon(action_crop, ["GRENADE", "VEHICLE", "FIST"])
+                if (match_name == "FIST" and match_score >= 0.40) or (match_name != "FIST" and match_score >= 0.60):
                     i1 = match_name
                 else:
                     i1 = "Weapon"
@@ -203,8 +228,8 @@ class FeedParser:
                     i2 = state_name
                     i1 = "Weapon"
                 else:
-                    action_name, action_score = self.match_icon(single_crop, ["GRENADE", "VEHICLE"])
-                    if action_score >= 0.60:
+                    action_name, action_score = self.match_icon(single_crop, ["GRENADE", "VEHICLE", "FIST"])
+                    if (action_name == "FIST" and action_score >= 0.40) or (action_name != "FIST" and action_score >= 0.60):
                         i1 = action_name
                     else:
                         i1 = "Weapon"
