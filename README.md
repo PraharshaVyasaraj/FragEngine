@@ -20,7 +20,7 @@ While the backend is verified by automated Headless CI suites, the client-side d
 
 ```mermaid
 graph TD
-    subgraph Browser Context (Chrome Extension)
+    subgraph "Browser Context (Chrome Extension)"
         A[HTML5 Video Element] -->|Sampling Loop: 1s Idle / 750ms Normal / 500ms Rush| B(diagnostic Preview Canvas)
         A -->|Grayscale Binarization CV Gate| C{White Pixel Density 3%-30%}
         C -->|Below 3% or Above 30%| D[Skip / Maintain Mode]
@@ -30,7 +30,7 @@ graph TD
         F -->|Binarized Similarity < 95%| H[Send Base64 JPEG]
     end
 
-    subgraph Backend Context (Flask Server)
+    subgraph "Backend Context (Flask Server)"
         H -->|HTTP POST| I[Decode Image]
         I --> J{Brightness Check < 45.0}
         J -->|Bright UI Bleed| K[Block Frame]
