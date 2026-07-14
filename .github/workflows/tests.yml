@@ -15,12 +15,12 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    - name: Install dependencies
+    - name: Install CI dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest
-        pip install -r requirements.txt
+        # Use CI-specific requirements (excludes PaddlePaddle/PaddleOCR — not available on Linux PyPI)
+        pip install -r requirements-ci.txt
     - name: Run tests
       run: |
-        # Run pytest inside the tests/ directory
+        # test_pipeline.py auto-skips when GITHUB_ACTIONS=true
         pytest tests/

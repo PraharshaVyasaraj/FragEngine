@@ -1,0 +1,10 @@
+# CI-only requirements — lightweight subset for GitHub Actions (Ubuntu Linux)
+# PaddlePaddle/PaddleOCR are NOT listed here; they require a local venv on Windows
+# test_pipeline.py already skips itself when GITHUB_ACTIONS=true
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+pillow>=10.0.0
+flask>=3.0.0
+flask-cors>=6.0.0
+python-Levenshtein>=0.20.0
+pytest>=8.0.0
