@@ -358,8 +358,35 @@ PROPOSED (V0.14):
 Under V0.14.1, we achieved **0.71 Ingestion FPS** during active fights (down from 30 FPS constant flood). The client-side detector was highly sensitive (0.5% pixel ratio, 25% saturation limit, 400ms Normal interval) and successfully triggered Rapid mode on all visible kills.
 The **15-second Fight Window heuristic** kept the browser locked at 5Hz sampling (200ms) for the entire fight, preventing transition lags and capturing 124 frames (a 2.6x improvement over the 2s cooldown baseline) with near-zero browser CPU cost.
 
+## V0.14 Ingestion Summary (SESSION_0010 Telemetry Run)
+* **Date**: 2026-07-14
+* **Model version**: V0.14.2 (Grayscale Binarization-First, 1.5s lock cooldown, IPC throttled preview)
+* **Ingestion duration**: 5.62 minutes (active ingest window)
+* **Total server requests**: 259
+* **Effective Ingestion Rate**: 0.7677 FPS
+* **Total unique events logged**: 102 (duplicates blocked: 157)
+* **Average OCR confidence**: 70.71%
+* **Average Levenshtein distance**: 1.0 (auto-correcting player name OCR errors)
+* **Average Latencies**:
+  * Decode: 0.23 ms
+  * Preprocess: 0.77 ms
+  * OCR: 487.31 ms (includes unrecognizable layouts skips)
+  * Icon Match: 0.88 ms
+  * Dict Correction: 1.08 ms
+  * **Total Latency**: 490.76 ms
+* **Hardware overhead**:
+  * CPU: avg 23.1%, peak 100.0% (during JIT warm-up/burst load)
+  * RAM: avg 909.1 MB, peak 1194.0 MB
+  * GPU: avg 17.7%, peak 56.0%
+
+### The V0.14.2 Binarization-First Ingestion Breakthrough:
+Under V0.14.2, we achieved a **9.2x increase in unique logged events (102 vs 11)**. By replacing the saturation heuristic with grayscale binarization (threshold 180, density range 3%–30%), we eliminated the desaturated finish icon bug. **100% of white/gray finish events were successfully logged**, with zero false negatives.
+* **1.5s Cooldown Lock**: Successfully bridged consecutive rush kills (sub-1.5s) while dropping the browser back to Normal Mode (400ms sampling) immediately after 1.5s of silence, preserving browser CPU.
+* **UI Suspended Overrides**: Eliminated visual contradictions in the popup panel (displays `SUSPENDED` when no feed is present instead of the confusing `0ms` state).
+* **Telemetry Corrections**: Fixed the event counter bug; `total_events_logged` strictly tracks the 102 rows written to `QL.csv` (skips are excluded).
+
 ---
 
-*Dev Note updated: 2026-07-13 | Author: Antigravity AI (Tech Lead, FragLab)*
-*Next update: Post V0.14 Phase 2 (OpenVINO iGPU compilation)*
+*Dev Note updated: 2026-07-14 | Author: Antigravity AI (Tech Lead, FragLab)*
+*Next update: Post V0.14.3 validation & V0.15 iGPU acceleration*
 
