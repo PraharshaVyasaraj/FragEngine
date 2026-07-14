@@ -29,7 +29,7 @@ def test_feed_parser():
         assert "layout" in res
         print(f"\n--- {img_name} ---")
         print(f"Parsed layout: {res['layout']}")
-        print(f"T1: {res['t1']} | I1: {res['i1']} | I2: {res['i2']} | T2: {res['t2']}")
+        print(f"T1: {res['t1']} | I1: {res['i1']} ({res['i1_confidence']:.2f}) | I2: {res['i2']} ({res['i2_confidence']:.2f}) | T2: {res['t2']}")
         
         if img_name == "SAMPLE_ZONE_FINISH_1T2I.png":
             assert res["layout"] == "1T2I"

@@ -67,7 +67,7 @@ class FeedParser:
             
         # Load Grenade (THROWABLES/NADE.png)
         nade_path = os.path.join(self.icons_dir, "THROWABLES", "NADE.png")
-        add_template("GRENADE", nade_path)
+        add_template("THROWABLE", nade_path)
             
         # Load Vehicles (EV, Taxi, Ferry, Helicopter)
         vehicles_dir = os.path.join(self.icons_dir, "VEHICLES")
@@ -205,30 +205,37 @@ class FeedParser:
         
         i1 = "UNKNOWN"
         i2 = "UNKNOWN"
+        i1_score = 0.0
+        i2_score = 0.0
         
         if layout == "2T2I":
             if len(extracted_icons) >= 2:
                 action_crop = extracted_icons[0]
                 state_crop = extracted_icons[1]
                 
-                # Match action icon against special categories
-                match_name, match_score = self.match_icon(action_crop, ["GRENADE", "VEHICLE", "FIST"])
+                # Match action icon against special categories (GRENADE maps to THROWABLE)
+                match_name, match_score = self.match_icon(action_crop, ["THROWABLE", "VEHICLE", "FIST"])
+                i1_score = float(match_score)
                 if (match_name == "FIST" and match_score >= 0.40) or (match_name != "FIST" and match_score >= 0.60):
                     i1 = match_name
                 else:
                     i1 = "Weapon"
                     
                 # Match state icon
-                i2, _ = self.match_icon(state_crop, ["KNOCK", "FINISH"])
+                match_name2, match_score2 = self.match_icon(state_crop, ["KNOCK", "FINISH"])
+                i2_score = float(match_score2)
+                i2 = match_name2
             elif len(extracted_icons) == 1:
                 # Fallback if both merged or one missed
                 single_crop = extracted_icons[0]
                 state_name, state_score = self.match_icon(single_crop, ["KNOCK", "FINISH"])
                 if state_score >= 0.50:
                     i2 = state_name
+                    i2_score = float(state_score)
                     i1 = "Weapon"
                 else:
-                    action_name, action_score = self.match_icon(single_crop, ["GRENADE", "VEHICLE", "FIST"])
+                    action_name, action_score = self.match_icon(single_crop, ["THROWABLE", "VEHICLE", "FIST"])
+                    i1_score = float(action_score)
                     if (action_name == "FIST" and action_score >= 0.40) or (action_name != "FIST" and action_score >= 0.60):
                         i1 = action_name
                     else:
@@ -239,11 +246,18 @@ class FeedParser:
                 i2 = "UNKNOWN"
         elif layout == "1T2I":
             if len(extracted_icons) >= 2:
-                i1, _ = self.match_icon(extracted_icons[0], ["ZONE", "FALL", "DROWN"])
-                i2, _ = self.match_icon(extracted_icons[1], ["KNOCK", "FINISH"])
+                match_name, match_score = self.match_icon(extracted_icons[0], ["ZONE", "FALL", "DROWN"])
+                i1 = match_name
+                i1_score = float(match_score)
+                
+                match_name2, match_score2 = self.match_icon(extracted_icons[1], ["KNOCK", "FINISH"])
+                i2 = match_name2
+                i2_score = float(match_score2)
             elif len(extracted_icons) == 1:
                 # Fallback if both merged
-                i2, _ = self.match_icon(extracted_icons[0], ["KNOCK", "FINISH"])
+                match_name2, match_score2 = self.match_icon(extracted_icons[0], ["KNOCK", "FINISH"])
+                i2 = match_name2
+                i2_score = float(match_score2)
                 
         t_match_end = time.perf_counter()
         match_ms = (t_match_end - t_match_start) * 1000
@@ -252,7 +266,9 @@ class FeedParser:
             "layout": layout,
             "t1": t1,
             "i1": i1,
+            "i1_confidence": i1_score,
             "i2": i2,
+            "i2_confidence": i2_score,
             "t2": t2,
             "ocr_confidence": ocr_confidence_avg,
             "_timings": {
