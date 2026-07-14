@@ -10,3 +10,5 @@ flask-cors>=6.0.0
 python-Levenshtein>=0.20.0
 setuptools>=68.0.0
 pytest>=8.0.0
+psutil>=5.9.0
+
