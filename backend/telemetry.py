@@ -106,30 +106,33 @@ class TelemetryCollector:
 
     def _gpu_sampler_loop(self):
         """Slow loop that updates self.latest_gpu_percent every 3 seconds to avoid blocking main thread"""
-        import wmi
-        import pythoncom
-        
-        # Initialize COM library for this thread
-        pythoncom.CoInitialize()
         try:
-            c = wmi.WMI()
-            while self.is_running:
+            import wmi
+            import pythoncom
+            # Initialize COM library for this thread
+            pythoncom.CoInitialize()
+            try:
+                c = wmi.WMI()
+                while self.is_running:
+                    try:
+                        results = c.query("SELECT UtilizationPercentage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine")
+                        utilizations = [int(r.UtilizationPercentage) for r in results if r.UtilizationPercentage]
+                        gpu_val = float(max(utilizations)) if utilizations else 0.0
+                        with self.lock:
+                            self.latest_gpu_percent = gpu_val
+                    except Exception:
+                        pass
+                    time.sleep(3.0)
+            except Exception as e:
+                print(f"[TELEMETRY ERROR] GPU sampler query loop failed: {e}")
+            finally:
                 try:
-                    results = c.query("SELECT UtilizationPercentage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine")
-                    utilizations = [int(r.UtilizationPercentage) for r in results if r.UtilizationPercentage]
-                    gpu_val = float(max(utilizations)) if utilizations else 0.0
-                    with self.lock:
-                        self.latest_gpu_percent = gpu_val
+                    pythoncom.CoUninitialize()
                 except Exception:
                     pass
-                time.sleep(3.0)
-        except Exception as e:
-            print(f"[TELEMETRY ERROR] GPU sampler initialization failed: {e}")
-        finally:
-            try:
-                pythoncom.CoUninitialize()
-            except Exception:
-                pass
+        except ImportError:
+            print("[TELEMETRY] GPU performance sampler disabled (wmi/pythoncom not available).")
+
 
     def _hardware_sampler_loop(self):
         """Samples hardware and process stats every 500ms and commits to telemetry CSV"""
