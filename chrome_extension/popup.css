@@ -50,6 +50,11 @@ body {
   box-shadow: 0 0 10px #d35400;
   animation: pulse 0.6s infinite;
 }
+.status-dot.rest {
+  background-color: #00bcd4; /* Rest Mode cyan */
+  box-shadow: 0 0 10px #00bcd4;
+  animation: pulse 2.5s infinite;
+}
 .status-dot.error {
   background-color: #ff1744;
   box-shadow: 0 0 10px #ff1744;
@@ -61,13 +66,20 @@ body {
   100% { opacity: 0.4; }
 }
 
-/* Grid Layouts and Cards */
+/* Grid Layouts and Cards with Glassmorphism Overhaul */
 .panel {
-  background-color: #12161f; /* Card Slate */
-  border: 1px solid #232a35;
-  border-radius: 4px;
+  background: rgba(18, 22, 31, 0.75); /* Translucent Slate */
+  border: 1px solid rgba(191, 161, 95, 0.18); /* Fine copper/gold border */
+  border-radius: 6px;
   padding: 10px;
   margin-bottom: 10px;
+  backdrop-filter: blur(8px); /* Glassmorphic blur */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.panel:hover {
+  border-color: rgba(211, 84, 0, 0.4); /* Highlight border on hover */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
 .panel-header {
   font-size: 11px;

@@ -13,13 +13,15 @@
 const SamplingEngine = (() => {
   const NORMAL_INTERVAL_MS = 400; // Sample every 400ms (V0.14.1)
   const RAPID_INTERVAL_MS = 200;  // Sample every 200ms
+  const REST_INTERVAL_MS = 2000;  // Sample every 2000ms (V0.15 Rest Mode)
   const RAPID_LOCK_DURATION_MS = 1500; // Stay in Rapid mode for 1.5s lock (V0.14.2)
 
-  let mode = 'IDLE';  // 'IDLE', 'NORMAL', 'RAPID'
+  let mode = 'IDLE';  // 'IDLE', 'REST', 'NORMAL', 'RAPID'
   let intervalId = null;
   let rapidModeLockedUntil = 0; // Expiration timestamp for fight window lock
   let lastIconDetectedTime = 0;
   let lastPreviewTime = 0; // Throttle preview ticks (V0.14.2)
+  let lastActivityTime = 0; // Timestamp of last visual/detection activity
 
   // Session stats
   let sessionStartTime = null;
@@ -55,6 +57,7 @@ const SamplingEngine = (() => {
     if (mode !== 'IDLE') return;
     sessionStartTime = Date.now();
     modeStartTime = Date.now();
+    lastActivityTime = Date.now();
     stats = {
       framesSampled: 0,
       framesWithIcon: 0,
@@ -86,6 +89,17 @@ const SamplingEngine = (() => {
     rapidModeLockedUntil = 0;
   }
 
+  function enterRestMode() {
+    if (mode === 'NORMAL' && modeStartTime) {
+      stats.normalModeTime += Date.now() - modeStartTime;
+    }
+    mode = 'REST';
+    modeStartTime = Date.now();
+    if (intervalId) clearInterval(intervalId);
+    intervalId = setInterval(sampleAndDetect, REST_INTERVAL_MS);
+    broadcastModeChange('REST');
+  }
+
   function enterNormalMode() {
     // Accumulate rapid time if switching from rapid
     if (mode === 'RAPID' && modeStartTime) {
@@ -95,6 +109,7 @@ const SamplingEngine = (() => {
     mode = 'NORMAL';
     modeStartTime = Date.now();
     rapidModeLockedUntil = 0;
+    lastActivityTime = Date.now();
     
     if (intervalId) clearInterval(intervalId);
     intervalId = setInterval(sampleAndDetect, NORMAL_INTERVAL_MS);
@@ -156,6 +171,11 @@ const SamplingEngine = (() => {
     }
 
     const now = Date.now();
+
+    if (feedPresent || frame.hasChanged) {
+      lastActivityTime = now;
+    }
+
     const shouldSendPreview = feedPresent || (now - lastPreviewTime >= 1000);
     if (shouldSendPreview) {
       lastPreviewTime = now;
@@ -165,7 +185,7 @@ const SamplingEngine = (() => {
     chrome.runtime.sendMessage({
       action: "frame-previews",
       raw: shouldSendPreview ? frame.dataUrl : null,
-      status: feedPresent ? "icon-detected" : "monitoring",
+      status: feedPresent ? "icon-detected" : (mode === 'REST' ? "rest" : "monitoring"),
       diagnostics: {
         mode: mode,
         pixelDiff: frame.meanDiff || 0,
@@ -176,17 +196,24 @@ const SamplingEngine = (() => {
     }).catch(() => {});
 
     // Decision engine
-    if (feedPresent && mode === 'NORMAL') {
-      enterRapidMode();
-    }
-    
-    if (mode === 'RAPID') {
+    if (mode === 'REST') {
+      if (feedPresent) {
+        enterRapidMode();
+      } else if (frame.hasChanged) {
+        enterNormalMode();
+      }
+    } else if (mode === 'NORMAL') {
+      if (feedPresent) {
+        enterRapidMode();
+      } else if (now - lastActivityTime >= 10000) {
+        enterRestMode();
+      }
+    } else if (mode === 'RAPID') {
       if (feedPresent) {
         // Feed active — evaluate for transmission
         TransmissionScheduler.evaluate(frame);
       } else {
         // Feed silent — check if Fight Window has expired
-        const now = Date.now();
         if (now >= rapidModeLockedUntil) {
           enterNormalMode();
         }

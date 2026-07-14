@@ -1,6 +1,4 @@
-import torch
-# Configure PyTorch CPU execution threads to balance speed (20-30ms) and latency
-torch.set_num_threads(8)
+# PyTorch thread settings removed in V0.15 for PaddleOCR + OpenVINO GPU transition
 
 import os
 import re

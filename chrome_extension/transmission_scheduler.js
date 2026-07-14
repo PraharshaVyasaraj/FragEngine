@@ -3,13 +3,12 @@
  * Controls WHEN frames are sent to the Flask backend.
  * 
  * During Rapid mode, the sampling engine evaluates frames every 200ms.
- * But we only SEND the latest frame every 800ms.
- * This means 4 samples arrive per send window — we discard the first 3
- * and send the 4th (the clearest, most stable frame).
+ * But we only SEND the latest frame every 360ms.
+ * This means 2 samples arrive per send window.
  */
 
 const TransmissionScheduler = (() => {
-  const SEND_INTERVAL_MS = 800;
+  const SEND_INTERVAL_MS = 360;
 
   let lastSendTime = 0;
   let latestFrame = null;

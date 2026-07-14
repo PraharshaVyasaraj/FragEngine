@@ -1,3 +1,6 @@
+# Python virtual environment (project-local, never committed)
+venv/
+
 # Python bytecode
 __pycache__/
 *.py[cod]

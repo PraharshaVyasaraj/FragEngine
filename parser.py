@@ -1,13 +1,26 @@
+import os
+# Direct OpenVINO execution target to GPU (Intel iGPU UHD 770)
+os.environ["OPENVINO_DEVICE"] = "GPU"
+
 import cv2
 import numpy as np
-import os
-import easyocr
+from paddleocr import PaddleOCR
 
 class FeedParser:
     def __init__(self, icons_dir):
         self.icons_dir = icons_dir
         self.templates = {}
-        self.reader = easyocr.Reader(['en'], gpu=False) # Default to CPU as it's small crop
+        # PP-OCRv5 Mobile — fastest stable model for short game text on Windows
+        # use_angle_cls=False: kill feed text is always horizontal, skip rotation model
+        # use_gpu=False:       run on CPU; OpenVINO handles iGPU acceleration separately
+        # rec_model_dir=None:  auto-select PP-OCRv5 Mobile rec weights from PaddleOCR 2.7.x
+        self.ocr = PaddleOCR(
+            use_angle_cls=False,
+            lang='en',
+            use_gpu=False,
+            show_log=False,
+            rec_algorithm='SVTR_LCNet',
+        )
         self.load_all_templates()
         
     def load_template(self, path):
@@ -32,17 +45,36 @@ class FeedParser:
         return binary
 
     def load_all_templates(self):
-        # Load States
+        self.templates = {}
+        
+        # Helper to load template into a list (maps a single key to multiple visual shapes)
+        def add_template(category, path):
+            tpl = self.load_template(path)
+            if tpl is not None:
+                if category not in self.templates:
+                    self.templates[category] = []
+                self.templates[category].append(tpl)
+                
+        # Load States (KNOCK, FINISH, FALL, DROWN)
         states_dir = os.path.join(self.icons_dir, "STATES")
         for name in ["KNOCK", "FINISH", "FALL", "DROWN"]:
             p = os.path.join(states_dir, f"{name}.png")
-            if os.path.exists(p):
-                self.templates[name] = self.load_template(p)
+            add_template(name, p)
 
-        # Load Zone
+        # Load Zone (ZONE)
         zone_path = os.path.join(self.icons_dir, "ZONE", "ZONE.png")
-        if os.path.exists(zone_path):
-            self.templates["ZONE"] = self.load_template(zone_path)
+        add_template("ZONE", zone_path)
+            
+        # Load Grenade (THROWABLES/NADE.png)
+        nade_path = os.path.join(self.icons_dir, "WEAPONS", "THROWABLES", "NADE.png")
+        add_template("GRENADE", nade_path)
+            
+        # Load Vehicles (EV, Taxi, Ferry, Helicopter)
+        vehicles_dir = os.path.join(self.icons_dir, "VEHICLES")
+        if os.path.exists(vehicles_dir):
+            for filename in os.listdir(vehicles_dir):
+                if filename.endswith(".png"):
+                    add_template("VEHICLE", os.path.join(vehicles_dir, filename))
 
     def match_icon(self, crop_binary, candidate_names):
         best_score = -1
@@ -50,21 +82,19 @@ class FeedParser:
         ch, cw = crop_binary.shape
         
         for name in candidate_names:
-            tpl_tight = self.templates.get(name)
-            if tpl_tight is None:
-                continue
-            
-            # Resize template to crop shape
-            tpl_resized = cv2.resize(tpl_tight, (cw, ch))
-            _, tpl_binary = cv2.threshold(tpl_resized, 127, 255, cv2.THRESH_BINARY)
+            tpl_list = self.templates.get(name, [])
+            for tpl_tight in tpl_list:
+                # Resize template to crop shape
+                tpl_resized = cv2.resize(tpl_tight, (cw, ch))
+                _, tpl_binary = cv2.threshold(tpl_resized, 127, 255, cv2.THRESH_BINARY)
+                    
+                res = cv2.matchTemplate(crop_binary, tpl_binary, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, _ = cv2.minMaxLoc(res)
                 
-            res = cv2.matchTemplate(crop_binary, tpl_binary, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, _ = cv2.minMaxLoc(res)
-            
-            if max_val > best_score:
-                best_score = max_val
-                best_name = name
-                
+                if max_val > best_score:
+                    best_score = max_val
+                    best_name = name
+                    
         return best_name, best_score
 
     def process_frame(self, img):
@@ -81,15 +111,20 @@ class FeedParser:
         
         import time
         t_ocr_start = time.perf_counter()
-        # Run EasyOCR text detection
-        results = self.reader.readtext(img)
+        
+        # Run PP-OCRv5 Mobile text extraction (PaddleOCR 2.7.x API)
+        # Returns: [ [ [ [x,y]x4 ], (text, prob) ], ... ] per page
+        results = self.ocr.ocr(img, cls=False)
         t_ocr_end = time.perf_counter()
         ocr_ms = (t_ocr_end - t_ocr_start) * 1000
         
         text_blocks = []
         ocr_confidences = []
-        for res in results:
-            bbox, text, prob = res
+        
+        # PaddleOCR 2.x: results[0] is the list of detections for the first (and only) image
+        page_results = results[0] if results and results[0] else []
+        for line in page_results:
+            bbox, (text, prob) = line
             x1 = int(bbox[0][0])
             x2 = int(bbox[2][0])
             y1 = int(bbox[0][1])
@@ -147,10 +182,36 @@ class FeedParser:
         i2 = "UNKNOWN"
         
         if layout == "2T2I":
-            i1 = "Weapon"
-            if len(extracted_icons) >= 1:
-                state_crop = extracted_icons[-1]
+            if len(extracted_icons) >= 2:
+                action_crop = extracted_icons[0]
+                state_crop = extracted_icons[1]
+                
+                # Match action icon against special categories
+                match_name, match_score = self.match_icon(action_crop, ["GRENADE", "VEHICLE"])
+                if match_score >= 0.60:
+                    i1 = match_name
+                else:
+                    i1 = "Weapon"
+                    
+                # Match state icon
                 i2, _ = self.match_icon(state_crop, ["KNOCK", "FINISH"])
+            elif len(extracted_icons) == 1:
+                # Fallback if both merged or one missed
+                single_crop = extracted_icons[0]
+                state_name, state_score = self.match_icon(single_crop, ["KNOCK", "FINISH"])
+                if state_score >= 0.50:
+                    i2 = state_name
+                    i1 = "Weapon"
+                else:
+                    action_name, action_score = self.match_icon(single_crop, ["GRENADE", "VEHICLE"])
+                    if action_score >= 0.60:
+                        i1 = action_name
+                    else:
+                        i1 = "Weapon"
+                    i2 = "UNKNOWN"
+            else:
+                i1 = "Weapon"
+                i2 = "UNKNOWN"
         elif layout == "1T2I":
             if len(extracted_icons) >= 2:
                 i1, _ = self.match_icon(extracted_icons[0], ["ZONE", "FALL", "DROWN"])
@@ -158,6 +219,7 @@ class FeedParser:
             elif len(extracted_icons) == 1:
                 # Fallback if both merged
                 i2, _ = self.match_icon(extracted_icons[0], ["KNOCK", "FINISH"])
+                
         t_match_end = time.perf_counter()
         match_ms = (t_match_end - t_match_start) * 1000
                 
