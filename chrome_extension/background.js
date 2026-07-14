@@ -3,6 +3,7 @@ let roiCoords = null;
 let activeTabId = null;
 let logCounter = 1;
 let localLogs = [];
+let isIgnoring = false;
 
 // Configure extension to open the Side Panel when the toolbar icon is clicked
 chrome.sidePanel
@@ -13,7 +14,7 @@ chrome.sidePanel
  * Handle sending frame to backend server (called from content script Scheduler).
  */
 async function sendFrameToServer(base64Jpg) {
-  if (!isCapturing) return;
+  if (!isCapturing || isIgnoring) return;
 
   try {
     const res = await fetch("http://127.0.0.1:5000/process", {
@@ -125,8 +126,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       roi: roiCoords,
       tabId: activeTabId,
       logs: localLogs,
-      logCounter: logCounter
+      logCounter: logCounter,
+      isIgnoring: isIgnoring
     });
+  }
+  else if (message.action === "toggle-ignore") {
+    isIgnoring = !isIgnoring;
+    sendResponse({ isIgnoring: isIgnoring });
   }
   return true;
 });

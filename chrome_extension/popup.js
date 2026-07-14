@@ -31,7 +31,7 @@ const lblCooldown = document.getElementById("lblCooldown");
 const lblReason = document.getElementById("lblReason");
 
 const logTableBody = document.getElementById("logTableBody");
-const chkAlwaysOn = document.getElementById("chkAlwaysOn");
+const btnIgnore = document.getElementById("btnIgnore");
 
 // DOM Initializer
 document.addEventListener("DOMContentLoaded", async () => {
@@ -46,6 +46,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       roiCoords = response.roi;
       logCounter = response.logCounter;
       localLogs = response.logs;
+      
+      // Update Ignore button styling based on saved state
+      updateIgnoreButtonUI(response.isIgnoring);
 
       // Restore logs
       logTableBody.innerHTML = "";
@@ -68,19 +71,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Restore checkbox preference
-  chrome.storage.local.get(["alwaysOn"], (result) => {
-    if (result.alwaysOn) {
-      chkAlwaysOn.checked = true;
-    }
-  });
-
-  chkAlwaysOn.addEventListener("change", () => {
-    chrome.storage.local.set({ alwaysOn: chkAlwaysOn.checked });
+  btnIgnore.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "toggle-ignore" }, (response) => {
+      if (response) {
+        updateIgnoreButtonUI(response.isIgnoring);
+      }
+    });
   });
 
   checkVideoStatus();
 });
+
+function updateIgnoreButtonUI(isIgnoring) {
+  if (isIgnoring) {
+    btnIgnore.innerText = "IGNORING";
+    btnIgnore.style.backgroundColor = "#c0392b";
+    btnIgnore.style.borderColor = "#c0392b";
+    btnIgnore.style.color = "#fff";
+  } else {
+    btnIgnore.innerText = "Ignore";
+    btnIgnore.style.backgroundColor = "#1a202c";
+    btnIgnore.style.borderColor = "#2d3748";
+    btnIgnore.style.color = "#e2e8f0";
+  }
+}
 
 function checkVideoStatus() {
   try {
