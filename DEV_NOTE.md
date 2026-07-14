@@ -385,6 +385,26 @@ Under V0.14.2, we achieved a **9.2x increase in unique logged events (102 vs 11)
 * **UI Suspended Overrides**: Eliminated visual contradictions in the popup panel (displays `SUSPENDED` when no feed is present instead of the confusing `0ms` state).
 * **Telemetry Corrections**: Fixed the event counter bug; `total_events_logged` strictly tracks the 102 rows written to `QL.csv` (skips are excluded).
 
+### V0.14.2 Ingestion Validation Run 2 (SESSION_0011 Telemetry Run)
+* **Date**: 2026-07-14
+* **Ingestion duration**: 1.85 minutes (active ingest window)
+* **Total server requests**: 80
+* **Effective Ingestion Rate**: 0.7213 FPS
+* **Total unique events logged**: 47 (duplicates blocked: 33)
+* **Average OCR confidence**: 88.39%
+* **Average Levenshtein distance**: 1.0
+* **Average Latencies**:
+  * Decode: 0.23 ms
+  * Preprocess: 0.71 ms
+  * OCR: 426.44 ms (includes unrecognizable layouts skips)
+  * Icon Match: 0.30 ms
+  * Dict Correction: 2.42 ms
+  * **Total Latency**: 430.51 ms
+* **Hardware overhead**:
+  * CPU: avg 13.8%, peak 78.1% (reduced processing load due to shorter session duration)
+  * RAM: avg 716.5 MB, peak 839.2 MB
+  * GPU: avg 17.0%, peak 39.0%
+
 ---
 
 *Dev Note updated: 2026-07-14 | Author: Antigravity AI (Tech Lead, FragLab)*
