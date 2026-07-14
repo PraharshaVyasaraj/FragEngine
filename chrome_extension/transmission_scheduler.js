@@ -15,6 +15,7 @@ const TransmissionScheduler = (() => {
   let latestFrame = null;
   let pendingSend = false;
   let sendTimer = null;
+  let lastSentImageData = null;
 
   // Diagnostics
   let stats = {
@@ -25,11 +26,48 @@ const TransmissionScheduler = (() => {
   };
 
   /**
+   * Compare grayscale binarized similarity of two frames.
+   */
+  function isSimilarFrame(imgData1, imgData2) {
+    if (!imgData1 || !imgData2) return false;
+    if (imgData1.width !== imgData2.width || imgData1.height !== imgData2.height) return false;
+
+    const data1 = imgData1.data;
+    const data2 = imgData2.data;
+    const len = data1.length;
+    let matchingPixels = 0;
+    const totalPixels = len / 4;
+
+    for (let i = 0; i < len; i += 4) {
+      const gray1 = 0.299 * data1[i] + 0.587 * data1[i+1] + 0.114 * data1[i+2];
+      const bin1 = gray1 >= 180 ? 1 : 0;
+
+      const gray2 = 0.299 * data2[i] + 0.587 * data2[i+1] + 0.114 * data2[i+2];
+      const bin2 = gray2 >= 180 ? 1 : 0;
+
+      if (bin1 === bin2) {
+        matchingPixels++;
+      }
+    }
+
+    const similarity = matchingPixels / totalPixels;
+    return similarity >= 0.95;
+  }
+
+  /**
    * Evaluate a frame for transmission.
    * Called every 200ms during Rapid mode.
    * @param {Object} frame — { dataUrl, imageData, hasChanged }
    */
   function evaluate(frame) {
+    // Client-side similarity suppression (V0.14.3)
+    if (lastSentImageData && frame.imageData) {
+      if (isSimilarFrame(frame.imageData, lastSentImageData)) {
+        stats.framesRejected++;
+        return; // Suppress duplicate
+      }
+    }
+
     latestFrame = frame;
     const now = Date.now();
     const elapsed = now - lastSendTime;
@@ -65,6 +103,15 @@ const TransmissionScheduler = (() => {
     stats.lastSendTimestamp = new Date().toISOString();
     stats.nextSendIn = SEND_INTERVAL_MS;
 
+    // Cache binarized mask of the sent frame
+    if (frame.imageData) {
+      lastSentImageData = new ImageData(
+        new Uint8ClampedArray(frame.imageData.data),
+        frame.imageData.width,
+        frame.imageData.height
+      );
+    }
+
     // Send to background worker for server POST
     chrome.runtime.sendMessage({
       action: "send-frame",
@@ -79,6 +126,7 @@ const TransmissionScheduler = (() => {
     lastSendTime = 0;
     latestFrame = null;
     pendingSend = false;
+    lastSentImageData = null;
     if (sendTimer) {
       clearTimeout(sendTimer);
       sendTimer = null;

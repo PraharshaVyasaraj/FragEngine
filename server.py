@@ -79,11 +79,11 @@ if not os.path.exists(ql_path):
         f.write("Log # | Layout Type | T1 | I1 | I2 | T2\n")
 
 # State Variables
+import threading
+server_lock = threading.Lock()
+last_log_time = 0.0
 last_log_entry = None  # Stores the normalized key tuple of the last logged event
 log_counter = 1
-
-# Time-based victim locks to prevent repeat logs: { (normalized_name, action): expiry_timestamp }
-cooldown_locks = {}
 
 # Load current log counter on startup
 if os.path.exists(ql_path):
@@ -194,7 +194,7 @@ def is_fuzzy_duplicate(entry1, entry2):
 
 @app.route("/process", methods=["POST"])
 def process_frame():
-    global last_log_entry, log_counter
+    global last_log_time, last_log_entry, log_counter
 
     telemetry.increment_request_count()
     t_start = time.perf_counter()
@@ -263,106 +263,104 @@ def process_frame():
         ocr_confidence = res.get("ocr_confidence", 0.0)
 
         # ─────────────────────────────────────────────────────────
-        # V1.2 DATA CLEANING & AUTO-CORRECTION
+        # V1.2 DATA CLEANING & AUTO-CORRECTION (with Server Lock)
         # ─────────────────────────────────────────────────────────
-        t_dict_start = time.perf_counter()
-        t1_orig = res.get("t1", "") or ""
-        t2_orig = res.get("t2", "") or ""
-        
-        res["t1"], corrections_1 = clean_and_normalize_name(t1_orig)
-        res["t2"], corrections_2 = clean_and_normalize_name(t2_orig)
-        dict_hits_count = corrections_1 + corrections_2
-        
-        # Calculate Levenshtein edit distance
-        import Levenshtein
-        t1_edit = Levenshtein.distance(t1_orig.upper(), res["t1"].upper()) if corrections_1 > 0 else 0
-        t2_edit = Levenshtein.distance(t2_orig.upper(), res["t2"].upper()) if corrections_2 > 0 else 0
-        levenshtein_dist = float(t1_edit + t2_edit)
-        
-        stages_ms["dict_correction"] = (time.perf_counter() - t_dict_start) * 1000
+        with server_lock:
+            t_dict_start = time.perf_counter()
+            t1_orig = res.get("t1", "") or ""
+            t2_orig = res.get("t2", "") or ""
+            
+            res["t1"], corrections_1 = clean_and_normalize_name(t1_orig)
+            res["t2"], corrections_2 = clean_and_normalize_name(t2_orig)
+            dict_hits_count = corrections_1 + corrections_2
+            
+            # Calculate Levenshtein edit distance
+            import Levenshtein
+            t1_edit = Levenshtein.distance(t1_orig.upper(), res["t1"].upper()) if corrections_1 > 0 else 0
+            t2_edit = Levenshtein.distance(t2_orig.upper(), res["t2"].upper()) if corrections_2 > 0 else 0
+            levenshtein_dist = float(t1_edit + t2_edit)
+            
+            stages_ms["dict_correction"] = (time.perf_counter() - t_dict_start) * 1000
 
-        # Minimum name length check (kills transient noise)
-        if len(res["t1"]) < MIN_NAME_LENGTH:
-            total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
-            print(f"[WALL BLOCKED] T1 too short: '{res['t1']}'")
-            return jsonify({"status": "skipped", "reason": f"T1 too short: {res['t1']}"})
+            # Minimum name length check (kills transient noise)
+            if len(res["t1"]) < MIN_NAME_LENGTH:
+                total_ms = (time.perf_counter() - t_start) * 1000
+                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
+                print(f"[WALL BLOCKED] T1 too short: '{res['t1']}'")
+                return jsonify({"status": "skipped", "reason": f"T1 too short: {res['t1']}"})
 
-        if res["layout"] == "2T2I" and len(res["t2"]) < MIN_NAME_LENGTH:
-            total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
-            print(f"[WALL BLOCKED] T2 too short: '{res['t2']}'")
-            return jsonify({"status": "skipped", "reason": f"T2 too short: {res['t2']}"})
+            if res["layout"] == "2T2I" and len(res["t2"]) < MIN_NAME_LENGTH:
+                total_ms = (time.perf_counter() - t_start) * 1000
+                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
+                print(f"[WALL BLOCKED] T2 too short: '{res['t2']}'")
+                return jsonify({"status": "skipped", "reason": f"T2 too short: {res['t2']}"})
 
-        # ─────────────────────────────────────────────────────────
-        # V1.2 COOLDOWN CHECK: Keyed on (T2 + I2)
-        # Prevents logging duplicate events for the same victim within 3.5 seconds
-        # ─────────────────────────────────────────────────────────
-        current_time = time.time()
-        
-        # Clean up expired locks from cooldown dictionary
-        for locked_key, expiry in list(cooldown_locks.items()):
-            if current_time >= expiry:
-                cooldown_locks.pop(locked_key, None)
-                
-        # Check if current T2 is locked for the current action (I2)
-        if res["layout"] == "2T2I" and res["t2"]:
-            new_victim_name = res["t2"].upper()
-            cooldown_blocked = False
-            for locked_key, expiry in list(cooldown_locks.items()):
-                locked_name, locked_icon = locked_key
-                # Match same action (I2) and fuzzy-match the victim name
-                if locked_icon == res["i2"]:
-                    similarity = difflib.SequenceMatcher(None, new_victim_name, locked_name).ratio()
-                    if similarity >= 0.82:
-                        cooldown_blocked = True
-                        break
-            if cooldown_blocked:
+            # ─────────────────────────────────────────────────────────
+            # V0.14.3 RATE LIMITER: Enforce 400ms delta between logged events
+            # ─────────────────────────────────────────────────────────
+            current_time = time.time()
+            if current_time - last_log_time < 0.400:
                 total_ms = (time.perf_counter() - t_start) * 1000
                 telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
-                print(f"[WALL BLOCKED] Cooldown block on victim: '{res['t2']}' for action '{res['i2']}'")
-                return jsonify({"status": "duplicate", "reason": f"Victim '{res['t2']}' in cooldown for '{res['i2']}'"})
+                print(f"[WALL BLOCKED] Rate-limit threshold: <400ms since last log")
+                return jsonify({"status": "duplicate", "reason": "Rate-limit threshold: <400ms since last log"})
 
-        # ─────────────────────────────────────────────────────────
-        # V1.2 FUZZY DEDUPLICATION
-        # ─────────────────────────────────────────────────────────
-        candidate_entry = (
-            res["layout"],
-            res["t1"],
-            res["i1"],
-            res["i2"],
-            res["t2"] or ""
-        )
-        if last_log_entry and is_fuzzy_duplicate(candidate_entry, last_log_entry):
+            # ─────────────────────────────────────────────────────────
+            # V0.14.3 DEDUPLICATION CHECK
+            # ─────────────────────────────────────────────────────────
+            candidate_entry = (
+                res["layout"],
+                res["t1"],
+                res["i1"],
+                res["i2"],
+                res["t2"] or ""
+            )
+            
+            is_duplicate = False
+            duplicate_reason = ""
+
+            if last_log_entry:
+                # 1. Exact string matches are blocked
+                if candidate_entry == last_log_entry:
+                    is_duplicate = True
+                    duplicate_reason = "Exact duplicate of last logged entry"
+                # 2. Same layout & same outcome action check:
+                #    If victim (T2) fuzzy-matches the previous victim name and it is within 5.0 seconds
+                elif candidate_entry[0] == last_log_entry[0] and candidate_entry[3] == last_log_entry[3]:
+                    # Verify both victim names are present
+                    if candidate_entry[4] and last_log_entry[4]:
+                        t2_similarity = difflib.SequenceMatcher(None, candidate_entry[4].upper(), last_log_entry[4].upper()).ratio()
+                        if t2_similarity >= 0.82 and (current_time - last_log_time < 5.0):
+                            is_duplicate = True
+                            duplicate_reason = f"Fuzzy victim duplicate: '{candidate_entry[4]}' matches last log victim '{last_log_entry[4]}'"
+
+            if is_duplicate:
+                total_ms = (time.perf_counter() - t_start) * 1000
+                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
+                print(f"[WALL BLOCKED] Duplicate: {duplicate_reason}")
+                return jsonify({"status": "duplicate", "reason": duplicate_reason})
+
+            # ─────────────────────────────────────────────────────────
+            # APPROVED -> Update State, Write to CSV
+            # ─────────────────────────────────────────────────────────
+            last_log_time = current_time
+            last_log_entry = candidate_entry
+            log_line = f"Log {log_counter} | {res['layout']} | {res['t1']} | {res['i1']} | {res['i2']} | {res['t2']}\n"
+
+            with open(ql_path, "a", encoding="utf-8") as f:
+                f.write(log_line)
+
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
-            print(f"[WALL BLOCKED] Fuzzy duplicate match: {res['t1']} -> {res['t2']}")
-            return jsonify({"status": "duplicate"})
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="logged")
+            print(f"[WALL PASSED] Logged: {log_line.strip()}")
 
-        # ─────────────────────────────────────────────────────────
-        # APPROVED -> Save Lock, Update State, Write to CSV
-        # ─────────────────────────────────────────────────────────
-        if res["layout"] == "2T2I" and res["t2"]:
-            # Register cooldown lock for this victim name + action
-            cooldown_locks[(res["t2"].upper(), res["i2"])] = current_time + 3.5
-
-        last_log_entry = candidate_entry
-        log_line = f"Log {log_counter} | {res['layout']} | {res['t1']} | {res['i1']} | {res['i2']} | {res['t2']}\n"
-
-        with open(ql_path, "a", encoding="utf-8") as f:
-            f.write(log_line)
-
-        total_ms = (time.perf_counter() - t_start) * 1000
-        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="logged")
-        print(f"[WALL PASSED] Logged: {log_line.strip()}")
-
-        response_data = {
-            "status": "logged",
-            "log_num": log_counter,
-            "data": res
-        }
-        log_counter += 1
-        return jsonify(response_data)
+            response_data = {
+                "status": "logged",
+                "log_num": log_counter,
+                "data": res
+            }
+            log_counter += 1
+            return jsonify(response_data)
 
     except Exception as e:
         total_ms = (time.perf_counter() - t_start) * 1000
