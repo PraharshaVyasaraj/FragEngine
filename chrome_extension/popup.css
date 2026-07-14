@@ -50,11 +50,6 @@ body {
   box-shadow: 0 0 10px #d35400;
   animation: pulse 0.6s infinite;
 }
-.status-dot.rest {
-  background-color: #00bcd4; /* Rest Mode cyan */
-  box-shadow: 0 0 10px #00bcd4;
-  animation: pulse 2.5s infinite;
-}
 .status-dot.error {
   background-color: #ff1744;
   box-shadow: 0 0 10px #ff1744;

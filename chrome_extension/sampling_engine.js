@@ -11,12 +11,11 @@
  */
 
 const SamplingEngine = (() => {
-  const NORMAL_INTERVAL_MS = 400; // Sample every 400ms (V0.14.1)
+  const NORMAL_INTERVAL_MS = 500; // Sample every 500ms (V0.16)
   const RAPID_INTERVAL_MS = 200;  // Sample every 200ms
-  const REST_INTERVAL_MS = 2000;  // Sample every 2000ms (V0.15 Rest Mode)
   const RAPID_LOCK_DURATION_MS = 1500; // Stay in Rapid mode for 1.5s lock (V0.14.2)
 
-  let mode = 'IDLE';  // 'IDLE', 'REST', 'NORMAL', 'RAPID'
+  let mode = 'IDLE';  // 'IDLE', 'NORMAL', 'RAPID'
   let intervalId = null;
   let rapidModeLockedUntil = 0; // Expiration timestamp for fight window lock
   let lastIconDetectedTime = 0;
@@ -89,17 +88,6 @@ const SamplingEngine = (() => {
     rapidModeLockedUntil = 0;
   }
 
-  function enterRestMode() {
-    if (mode === 'NORMAL' && modeStartTime) {
-      stats.normalModeTime += Date.now() - modeStartTime;
-    }
-    mode = 'REST';
-    modeStartTime = Date.now();
-    if (intervalId) clearInterval(intervalId);
-    intervalId = setInterval(sampleAndDetect, REST_INTERVAL_MS);
-    broadcastModeChange('REST');
-  }
-
   function enterNormalMode() {
     // Accumulate rapid time if switching from rapid
     if (mode === 'RAPID' && modeStartTime) {
@@ -130,7 +118,7 @@ const SamplingEngine = (() => {
     
     mode = 'RAPID';
     modeStartTime = Date.now();
-    rapidModeLockedUntil = Date.now() + RAPID_LOCK_DURATION_MS; // Lock Fight Window (15s)
+    rapidModeLockedUntil = Date.now() + RAPID_LOCK_DURATION_MS; // Lock Fight Window (1.5s)
     
     if (intervalId) clearInterval(intervalId);
     intervalId = setInterval(sampleAndDetect, RAPID_INTERVAL_MS);
@@ -185,7 +173,7 @@ const SamplingEngine = (() => {
     chrome.runtime.sendMessage({
       action: "frame-previews",
       raw: shouldSendPreview ? frame.dataUrl : null,
-      status: feedPresent ? "icon-detected" : (mode === 'REST' ? "rest" : "monitoring"),
+      status: feedPresent ? "icon-detected" : "monitoring",
       diagnostics: {
         mode: mode,
         pixelDiff: frame.meanDiff || 0,
@@ -196,17 +184,9 @@ const SamplingEngine = (() => {
     }).catch(() => {});
 
     // Decision engine
-    if (mode === 'REST') {
+    if (mode === 'NORMAL') {
       if (feedPresent) {
         enterRapidMode();
-      } else if (frame.hasChanged) {
-        enterNormalMode();
-      }
-    } else if (mode === 'NORMAL') {
-      if (feedPresent) {
-        enterRapidMode();
-      } else if (now - lastActivityTime >= 10000) {
-        enterRestMode();
       }
     } else if (mode === 'RAPID') {
       if (feedPresent) {

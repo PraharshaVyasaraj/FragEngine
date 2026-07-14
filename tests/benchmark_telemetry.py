@@ -37,7 +37,19 @@ def run_benchmark():
     correct_states = 0
     total_evals = 0
     
-    print("| Image Name | Layout | OCR Latency | Icon Match | Total Latency | I1 (Action) | I2 (State) | Status |")
+    # Warm-up the OpenVINO compiler (run 5 times on the first image to load layers into iGPU)
+    first_img_name = list(ground_truths.keys())[0]
+    first_path = os.path.join(os.path.join(base_dir, "TRANING_FEED_SAMPLE"), first_img_name)
+    if os.path.exists(first_path):
+        warmup_img = cv2.imread(first_path)
+        if warmup_img is not None:
+            print("Warming up OpenVINO GPU execution layers...")
+            warmup_upscaled = cv2.resize(warmup_img, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+            for _ in range(5):
+                parser.process_frame(warmup_upscaled)
+            print("Warm-up complete!\n")
+
+    print("| Image Name | Layout | Avg OCR Latency | Icon Match | Total Latency | I1 (Action) | I2 (State) | Status |")
     print("|---|---|---|---|---|---|---|---|")
     
     # Run over training samples
@@ -57,11 +69,23 @@ def run_benchmark():
         if img is None:
             continue
             
-        # Parse and measure latency components
-        res = parser.process_frame(img)
+        # Run 5 times and take average of the last 4 runs to get steady-state latency
+        runs_ocr = []
+        runs_match = []
+        last_res = None
         
-        ocr_ms = res["_timings"]["ocr"]
-        match_ms = res["_timings"]["icon_match"]
+        # Apply 1.5x resize scale to match production server.py exactly
+        img_upscaled = cv2.resize(img, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+        
+        for i in range(5):
+            res = parser.process_frame(img_upscaled)
+            if i > 0: # Skip first run to avoid residual JIT compiler spikes
+                runs_ocr.append(res["_timings"]["ocr"])
+                runs_match.append(res["_timings"]["icon_match"])
+            last_res = res
+            
+        ocr_ms = np.mean(runs_ocr)
+        match_ms = np.mean(runs_match)
         total_ms = ocr_ms + match_ms
         
         ocr_latencies.append(ocr_ms)
@@ -71,9 +95,9 @@ def run_benchmark():
         total_evals += 1
         
         # Verify predictions
-        pred_layout = res.get("layout", "unrecognizable")
-        pred_i1 = res.get("i1", "UNKNOWN")
-        pred_i2 = res.get("i2", "UNKNOWN")
+        pred_layout = last_res.get("layout", "unrecognizable")
+        pred_i1 = last_res.get("i1", "UNKNOWN")
+        pred_i2 = last_res.get("i2", "UNKNOWN")
         
         exp_layout, exp_i1, exp_i2 = gt
         
@@ -87,7 +111,7 @@ def run_benchmark():
         
         overall_status = "PASS" if (layout_ok and i1_ok and i2_ok) else "FAIL"
         
-        print(f"| {filename} | {pred_layout} | {ocr_ms:.1f}ms | {match_ms:.1f}ms | {total_ms:.1f}ms | {pred_i1} | {pred_i2} | {overall_status} |")
+        print(f"| {filename} | {pred_layout} | {ocr_ms:.1f}ms (steady) | {match_ms:.1f}ms | {total_ms:.1f}ms | {pred_i1} | {pred_i2} | {overall_status} |")
         
     print("\n====================================================")
     print("                 BENCHMARK SUMMARY                  ")

@@ -240,8 +240,8 @@ def process_frame():
             print(f"[WALL BLOCKED] Bright frame (brightness={mean_brightness:.1f}) — likely UI noise, skipping OCR")
             return jsonify({"status": "skipped", "reason": f"Bright frame: {mean_brightness:.1f}"})
 
-        # 3x Cubic Upscale for OCR legibility
-        img_upscaled = cv2.resize(img, (0, 0), fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+        # 1.5x Cubic Upscale for OCR legibility (reduced from 3.0x in V0.16 for OpenVINO speed optimization)
+        img_upscaled = cv2.resize(img, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
         stages_ms["preprocess"] = (time.perf_counter() - t_prep_start) * 1000
 
         # ─────────────────────────────────────────────────────────

@@ -196,9 +196,6 @@ chrome.runtime.onMessage.addListener((message) => {
       if (message.mode === "RAPID") {
         statusDot.className = "status-dot rapid";
         statusLabel.innerText = "INGESTING (RAPID)";
-      } else if (message.mode === "REST") {
-        statusDot.className = "status-dot rest";
-        statusLabel.innerText = "INGESTING (REST)";
       } else {
         statusDot.className = "status-dot active";
         statusLabel.innerText = "INGESTING (NORMAL)";
@@ -270,8 +267,6 @@ function updateDiagnosticsUI(diag) {
   // Decide reason text
   if (diag.engine.mode === "NORMAL") {
     lblReason.innerText = "MONITORING IDLE FEED";
-  } else if (diag.engine.mode === "REST") {
-    lblReason.innerText = "REST MODE (ZERO CPU PREVIEW)";
   } else if (diag.engine.mode === "RAPID") {
     if (detector.feedPresent) {
       const region = detector.detectedRegion ? detector.detectedRegion.toUpperCase() : "UNKNOWN";
