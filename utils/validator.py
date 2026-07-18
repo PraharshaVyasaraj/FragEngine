@@ -55,8 +55,8 @@ class DataQualityValidator:
             
         # Validate Row_Index
         row_idx = row_dict.get("Row_Index", 0)
-        if not (0 <= row_idx <= 3):
-            warnings.append(f"Row_Index ({row_idx}) out of bounds [0, 3]")
+        if not (-1 <= row_idx <= 3):
+            warnings.append(f"Row_Index ({row_idx}) out of bounds [-1, 3]")
             
         if warnings:
             self.logger.warning(f"Telemetry Validation Warning: {'; '.join(warnings)}")
