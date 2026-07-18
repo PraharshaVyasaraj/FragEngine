@@ -13,7 +13,7 @@ class TelemetryCollector:
     def __init__(self, base_dir=None):
         self.config = load_config()
         self.base_dir = base_dir if base_dir else self.config.get("base_dir", r"C:\FragEngine")
-        self.version = self.config.get("version", "0.17.0")
+        self.version = self.config.get("version", "0.16.0")
         
         self.session_dir = self._create_session_directory()
         

@@ -11,7 +11,7 @@ def load_config():
     except Exception as e:
         print(f"[ERROR] Failed to load config.json from {config_path}: {e}")
         return {
-            "version": "0.17.0",
+            "version": "0.16.0",
             "base_dir": r"C:\FragEngine",
             "icons_dir": r"C:\FragEngine\icons",
             "ql_path": r"C:\FragEngine\QL.csv",
