@@ -24,7 +24,13 @@ def start_training():
     
     # Check if dataset directories contain files
     train_images_dir = os.path.join(os.path.dirname(__file__), "dataset", "images", "train")
-    if not os.path.exists(train_images_dir) or not os.listdir(train_images_dir):
+    has_files = False
+    if os.path.exists(train_images_dir):
+        files = [f for f in os.listdir(train_images_dir) if f != ".gitkeep"]
+        if files:
+            has_files = True
+            
+    if not has_files:
         print(f"\n[WARNING] The training directory '{train_images_dir}' is empty.")
         print("[WARNING] Please place your labeled training images and annotation files into:")
         print("  - images/train/ (images)")
