@@ -246,13 +246,13 @@ class FeedParser:
         text_blocks = sorted(text_blocks, key=lambda b: b["x1"])
         
         if len(text_blocks) == 2:
-            layout = "2T2I"
+            layout = "T2I2"
             t1 = text_blocks[0]["text"]
             t2 = text_blocks[1]["text"]
             icon_x1 = text_blocks[0]["x2"]
             icon_x2 = text_blocks[1]["x1"]
         elif len(text_blocks) == 1:
-            layout = "1T2I"
+            layout = "T1I2"
             t1 = text_blocks[0]["text"]
             t2 = "None"
             icon_x1 = text_blocks[0]["x2"]
@@ -304,7 +304,7 @@ class FeedParser:
                 "status": "accepted" if (cw >= 12 and ch >= 12) else "rejected"
             })
 
-        if layout == "2T2I":
+        if layout == "T2I2":
             if len(extracted_icons) >= 2:
                 action_crop = extracted_icons[0]
                 state_crop = extracted_icons[1]
@@ -340,7 +340,7 @@ class FeedParser:
             else:
                 i1 = "Weapon"
                 i2 = "UNKNOWN"
-        elif layout == "1T2I":
+        elif layout == "T1I2":
             if len(extracted_icons) >= 2:
                 match_name, match_score = self.match_icon(extracted_icons[0], ["ZONE", "FALL", "DROWN"], debug_trace["template_evaluations"])
                 i1 = match_name

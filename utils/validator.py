@@ -64,12 +64,20 @@ class DataQualityValidator:
         """
         warnings = []
         layout = event_dict.get("layout")
-        if layout not in ["1T2I", "2T2I"]:
+        if layout not in ["T1I2", "T2I2"]:
             warnings.append(f"Unexpected layout type: {layout}")
             
         t1 = event_dict.get("t1", "")
-        if not t1:
-            warnings.append("Parsed player T1 name is empty")
+        t2 = event_dict.get("t2", "")
+        
+        if layout == "T2I2":
+            if not t1 or t1 == "None":
+                warnings.append("Parsed player T1 name is empty or None in T2I2")
+            if not t2 or t2 == "None":
+                warnings.append("Parsed player T2 name is empty or None in T2I2")
+        elif layout == "T1I2":
+            if not t1 or t1 == "None":
+                warnings.append("Parsed player T1 name is empty or None in T1I2")
             
         i1 = event_dict.get("i1", "")
         if not i1:

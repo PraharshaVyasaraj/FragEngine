@@ -32,15 +32,15 @@ def test_feed_parser():
         print(f"T1: {res['t1']} | I1: {res['i1']} ({res['i1_confidence']:.2f}) | I2: {res['i2']} ({res['i2_confidence']:.2f}) | T2: {res['t2']}")
         
         if img_name == "SAMPLE_ZONE_FINISH_1T2I.png":
-            assert res["layout"] == "1T2I"
+            assert res["layout"] == "T1I2"
             assert res["i1"] == "ZONE"
             assert res["i2"] == "FINISH"
         elif img_name == "SAMPLE_WEAPON_KNOCK_2T2I.png":
-            assert res["layout"] == "2T2I"
+            assert res["layout"] == "T2I2"
             assert res["i1"] == "Weapon"
             assert res["i2"] == "KNOCK"
         elif img_name == "SAMPLE_FIST_FINISH_2T2I.png":
-            assert res["layout"] == "2T2I"
+            assert res["layout"] == "T2I2"
             assert res["i1"] == "FIST"
             assert res["i2"] == "FINISH"
 

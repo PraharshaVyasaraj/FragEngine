@@ -242,17 +242,18 @@ def process_frame():
         # STAGE 4: CONCURRENCY & DEDUPLICATION GATES
         # ─────────────────────────────────────────────────────────
         with server_lock:
-            if len(res["t1"]) < MIN_NAME_LENGTH:
-                total_ms = (time.perf_counter() - t_start) * 1000
-                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
-                print(f"[WALL BLOCKED] T1 too short: '{res['t1']}'")
-                return jsonify({"status": "skipped", "reason": f"T1 too short: {res['t1']}"})
-
-            if res["layout"] == "2T2I" and len(res["t2"]) < MIN_NAME_LENGTH:
-                total_ms = (time.perf_counter() - t_start) * 1000
-                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
-                print(f"[WALL BLOCKED] T2 too short: '{res['t2']}'")
-                return jsonify({"status": "skipped", "reason": f"T2 too short: {res['t2']}"})
+            if res["layout"] == "T2I2":
+                if len(res["t1"]) < MIN_NAME_LENGTH or len(res["t2"]) < MIN_NAME_LENGTH:
+                    total_ms = (time.perf_counter() - t_start) * 1000
+                    telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
+                    print(f"[WALL BLOCKED] T1 or T2 too short: '{res['t1']}' / '{res['t2']}'")
+                    return jsonify({"status": "skipped", "reason": f"T1 or T2 too short: {res['t1']} / {res['t2']}"})
+            elif res["layout"] == "T1I2":
+                if len(res["t1"]) < MIN_NAME_LENGTH:
+                    total_ms = (time.perf_counter() - t_start) * 1000
+                    telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
+                    print(f"[WALL BLOCKED] T1 too short: '{res['t1']}'")
+                    return jsonify({"status": "skipped", "reason": f"T1 too short: {res['t1']}"})
 
             # Temporal Rate-Limit Gate (400ms threshold)
             current_time = time.time()
