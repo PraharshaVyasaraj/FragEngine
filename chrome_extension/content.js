@@ -250,8 +250,64 @@ function grabFrame(roi) {
   
   prevFrameGray = currentGray;
   
+  // Slice into 4 horizontal segments
+  const segments = [];
+  const rowH = Math.floor(cropH / 4);
+  if (!window.prevSegmentsGray) {
+    window.prevSegmentsGray = [null, null, null, null];
+  }
+  
+  for (let s = 0; s < 4; s++) {
+    const sy1 = s * rowH;
+    const subCanvas = document.createElement("canvas");
+    subCanvas.width = cropW;
+    subCanvas.height = rowH;
+    const subCtx = subCanvas.getContext("2d", { willReadFrequently: true });
+    subCtx.drawImage(videoElement, vx1, vy1 + sy1, cropW, rowH, 0, 0, cropW, rowH);
+    
+    const subImgData = subCtx.getImageData(0, 0, cropW, rowH);
+    const subPixels = subImgData.data;
+    
+    const subLen = subPixels.length;
+    const subGray = new Uint8Array(subLen / 4);
+    let sIdx = 0;
+    for (let i = 0; i < subLen; i += 4) {
+      subGray[sIdx++] = Math.round(0.299 * subPixels[i] + 0.587 * subPixels[i+1] + 0.114 * subPixels[i+2]);
+    }
+    
+    let subChanged = false;
+    let subMeanDiff = 0;
+    const prevSubGray = window.prevSegmentsGray[s];
+    
+    if (!prevSubGray || prevSubGray.length !== subGray.length) {
+      subChanged = true;
+      subMeanDiff = 255;
+    } else {
+      let sumDiff = 0;
+      const numPixels = subGray.length;
+      for (let i = 0; i < numPixels; i++) {
+        sumDiff += Math.abs(subGray[i] - prevSubGray[i]);
+      }
+      subMeanDiff = sumDiff / numPixels;
+      if (subMeanDiff >= 8.0) {
+        subChanged = true;
+      }
+    }
+    
+    window.prevSegmentsGray[s] = subGray;
+    const subDataUrl = subCanvas.toDataURL("image/jpeg", 0.90);
+    
+    segments.push({
+      rowIndex: s,
+      dataUrl: subDataUrl,
+      imageData: subImgData,
+      hasChanged: subChanged,
+      meanDiff: Math.round(subMeanDiff * 100) / 100
+    });
+  }
+  
   const dataUrl = canvas.toDataURL("image/jpeg", 0.90);
-  return { dataUrl, imageData, hasChanged, meanDiff: Math.round(meanDiff * 100) / 100 };
+  return { dataUrl, imageData, hasChanged, meanDiff: Math.round(meanDiff * 100) / 100, segments };
 }
 
 // Initialize Sampling Engine with references to our functions

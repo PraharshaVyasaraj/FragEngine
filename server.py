@@ -10,6 +10,9 @@ import difflib
 import sys
 import signal
 import atexit
+import ctypes
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from parser import FeedParser
@@ -54,7 +57,6 @@ if not os.path.exists(ql_path):
         f.write("Log # | Layout Type | T1 | I1 | I2 | T2\n")
 
 # State Variables
-import threading
 server_lock = threading.Lock()
 last_log_time = 0.0
 last_log_entry = None  # Stores the normalized key tuple of the last logged event
@@ -76,6 +78,34 @@ MIN_NAME_LENGTH = ocr_conf.get("min_name_length", 3)
 MIN_ICON_CONFIDENCE = ocr_conf.get("min_icon_confidence", 0.50)
 RATE_LIMIT_SEC = ocr_conf.get("rate_limit_sec", 0.400)
 EXPECTED_BG_MAX_BRIGHTNESS = 90
+
+# --- PRE-WARMED CORE AFFINITY SCHEDULER SETUP ---
+def init_worker(worker_id_list, index_lock):
+    """
+    Called when each worker thread starts. Sets the Windows CPU affinity mask 
+    to pin the thread to E-cores [12-19] of the i5-14500.
+    """
+    with index_lock:
+        worker_id = worker_id_list.pop(0)
+    try:
+        kernel32 = ctypes.windll.kernel32
+        thread_handle = kernel32.GetCurrentThread()
+        # Pin worker to logical core 12 + worker_id (12-19)
+        core_index = 12 + worker_id
+        mask = 1 << core_index
+        kernel32.SetThreadAffinityMask(thread_handle, mask)
+        print(f"[BOOT] Standby worker thread {worker_id} bound to E-core {core_index}")
+    except Exception as e:
+        print(f"[BOOT WARNING] Failed to bind thread {worker_id} affinity: {e}")
+
+worker_ids = list(range(8))
+worker_index_lock = threading.Lock()
+executor_pool = ThreadPoolExecutor(
+    max_workers=8,
+    initializer=init_worker,
+    initargs=(worker_ids, worker_index_lock)
+)
+
 
 def correct_word_via_dict(word, dictionary, threshold=0.85):
     """Fuzzy match word against dictionary. Snaps to closest match if similarity >= threshold."""
@@ -149,11 +179,13 @@ def is_fuzzy_duplicate(entry1, entry2):
             
     return True
 
-@app.route("/process", methods=["POST"])
-def process_frame():
-    global last_log_time, last_log_entry, log_counter
 
-    telemetry.increment_request_count()
+def process_frame_task(image_data, row_index):
+    """
+    Executes the frame parsing, OCR, and validation stages on a standby worker thread.
+    """
+    global last_log_time, last_log_entry, log_counter
+    
     t_start = time.perf_counter()
     stages_ms = {
         "decode": 0.0,
@@ -167,13 +199,8 @@ def process_frame():
     levenshtein_dist = 0.0
 
     try:
-        data = request.json
-        if not data or "image" not in data:
-            return jsonify({"status": "error", "message": "Missing image data"}), 400
-
         # Decode base64 JPEG frame
         t_decode_start = time.perf_counter()
-        image_data = data["image"]
         header, encoded = image_data.split(",", 1)
         decoded = base64.b64decode(encoded)
         np_arr = np.frombuffer(decoded, dtype=np.uint8)
@@ -181,7 +208,7 @@ def process_frame():
         stages_ms["decode"] = (time.perf_counter() - t_decode_start) * 1000
 
         if img is None:
-            return jsonify({"status": "error", "message": "Failed to decode frame"}), 400
+            return {"status": "error", "message": "Failed to decode frame segment"}, 400
 
         t_prep_start = time.perf_counter()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -190,9 +217,9 @@ def process_frame():
             stages_ms["preprocess"] = (time.perf_counter() - t_prep_start) * 1000
             total_ms = (time.perf_counter() - t_start) * 1000
             
-            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped")
-            print(f"[WALL BLOCKED] Bright frame (brightness={mean_brightness:.1f}) — likely UI noise, skipping OCR")
-            return jsonify({"status": "skipped", "reason": f"Bright frame: {mean_brightness:.1f}"})
+            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped", row_index=row_index)
+            print(f"[WALL BLOCKED] Row {row_index} bright (brightness={mean_brightness:.1f}) — skipping OCR")
+            return {"status": "skipped", "reason": f"Bright frame: {mean_brightness:.1f}"}, 200
 
         # 1.5x Cubic Upscale for OCR legibility
         img_upscaled = cv2.resize(img, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
@@ -205,8 +232,8 @@ def process_frame():
             if res and "_timings" in res:
                 stages_ms["ocr"] = res["_timings"].get("ocr", 0.0)
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped")
-            return jsonify({"status": "skipped", "reason": "Unrecognizable layout"})
+            telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped", row_index=row_index)
+            return {"status": "skipped", "reason": "Unrecognizable layout"}, 200
 
         # Retrieve timings and confidence from parser
         stages_ms["ocr"] = res["_timings"].get("ocr", 0.0)
@@ -214,11 +241,10 @@ def process_frame():
         ocr_confidence = res.get("ocr_confidence", 0.0)
 
         # Event level data quality check
+        res["Row_Index"] = row_index
         telemetry.validator.validate_parsed_event(res)
 
-        # ─────────────────────────────────────────────────────────
         # STAGE 3: SOFT DICTIONARY AUTO-CORRECTION
-        # ─────────────────────────────────────────────────────────
         t_dict_start = time.perf_counter()
         t1_raw = res["t1"]
         t2_raw = res["t2"]
@@ -238,30 +264,28 @@ def process_frame():
             l2 = difflib.SequenceMatcher(None, t2_raw.upper(), t2_clean.upper()).distance() if hasattr(difflib.SequenceMatcher, 'distance') else 1.0
             levenshtein_dist = float(l1 + l2) / dict_hits_count
 
-        # ─────────────────────────────────────────────────────────
         # STAGE 4: CONCURRENCY & DEDUPLICATION GATES
-        # ─────────────────────────────────────────────────────────
         with server_lock:
             if res["layout"] == "T2I2":
                 if len(res["t1"]) < MIN_NAME_LENGTH or len(res["t2"]) < MIN_NAME_LENGTH:
                     total_ms = (time.perf_counter() - t_start) * 1000
-                    telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
+                    telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped", row_index=row_index)
                     print(f"[WALL BLOCKED] T1 or T2 too short: '{res['t1']}' / '{res['t2']}'")
-                    return jsonify({"status": "skipped", "reason": f"T1 or T2 too short: {res['t1']} / {res['t2']}"})
+                    return {"status": "skipped", "reason": f"T1 or T2 too short: {res['t1']} / {res['t2']}"}, 200
             elif res["layout"] == "T1I2":
                 if len(res["t1"]) < MIN_NAME_LENGTH:
                     total_ms = (time.perf_counter() - t_start) * 1000
-                    telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
+                    telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped", row_index=row_index)
                     print(f"[WALL BLOCKED] T1 too short: '{res['t1']}'")
-                    return jsonify({"status": "skipped", "reason": f"T1 too short: {res['t1']}"})
+                    return {"status": "skipped", "reason": f"T1 too short: {res['t1']}"}, 200
 
             # Temporal Rate-Limit Gate (400ms threshold)
             current_time = time.time()
             if current_time - last_log_time < RATE_LIMIT_SEC:
                 total_ms = (time.perf_counter() - t_start) * 1000
-                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
+                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate", row_index=row_index)
                 print(f"[WALL BLOCKED] Rate-limit threshold: <{RATE_LIMIT_SEC * 1000:.0f}ms since last log")
-                return jsonify({"status": "duplicate", "reason": f"Rate-limit threshold: <{RATE_LIMIT_SEC * 1000:.0f}ms since last log"})
+                return {"status": "duplicate", "reason": f"Rate-limit threshold: <{RATE_LIMIT_SEC * 1000:.0f}ms since last log"}, 200
 
             # Spatial-Similarity Deduplication Gate (82% Levenshtein/Fuzzy match)
             candidate_entry = (res["layout"], res["t1"], res["i1"], res["i2"], res["t2"])
@@ -275,9 +299,9 @@ def process_frame():
 
             if is_duplicate:
                 total_ms = (time.perf_counter() - t_start) * 1000
-                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
+                telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate", row_index=row_index)
                 print(f"[WALL BLOCKED] Duplicate: {duplicate_reason}")
-                return jsonify({"status": "duplicate", "reason": duplicate_reason})
+                return {"status": "duplicate", "reason": duplicate_reason}, 200
 
             # APPROVED -> Update State, Write to CSV
             last_log_time = current_time
@@ -288,8 +312,8 @@ def process_frame():
                 f.write(log_line)
 
             total_ms = (time.perf_counter() - t_start) * 1000
-            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="logged")
-            print(f"[WALL PASSED] Logged: {log_line.strip()}")
+            telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="logged", row_index=row_index)
+            print(f"[WALL PASSED] Logged (Row {row_index}): {log_line.strip()}")
 
             response_data = {
                 "status": "logged",
@@ -297,15 +321,35 @@ def process_frame():
                 "data": res
             }
             log_counter += 1
-            return jsonify(response_data)
+            return response_data, 200
 
     except Exception as e:
         total_ms = (time.perf_counter() - t_start) * 1000
-        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="error")
-        print(f"Error processing frame: {e}")
+        telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="error", row_index=row_index)
+        print(f"Error processing frame segment: {e}")
+        return {"status": "error", "message": str(e)}, 500
+
+
+@app.route("/process", methods=["POST"])
+def process_frame():
+    telemetry.increment_request_count()
+    try:
+        data = request.json
+        if not data or "image" not in data:
+            return jsonify({"status": "error", "message": "Missing image data"}), 400
+
+        image_data = data["image"]
+        row_index = int(data.get("row_index", 0))
+
+        # Submit task to the pre-warmed affinity-bound thread pool
+        future = executor_pool.submit(process_frame_task, image_data, row_index)
+        res_data, status_code = future.result()
+        return jsonify(res_data), status_code
+    except Exception as e:
+        print(f"Server routing error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":
     print(f"FragEngine {config['version']} — Active (FragLab Analytics)")
-    app.run(host=config["server"]["host"], port=config["server"]["port"], debug=config["server"]["debug"])
+    app.run(host=config["server"]["host"], port=config["server"]["port"], debug=config["server"]["debug"], threaded=True)

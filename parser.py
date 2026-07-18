@@ -8,6 +8,8 @@ from utils.loader import load_config
 # Load system config
 config = load_config()
 os.environ["OPENVINO_DEVICE"] = "GPU"
+os.environ["OV_CPU_STREAMS_NUM"] = "8"
+os.environ["OV_GPU_STREAMS_NUM"] = "8"
 
 class FeedParser:
     def __init__(self, icons_dir=None):

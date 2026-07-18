@@ -13,14 +13,14 @@ chrome.sidePanel
 /**
  * Handle sending frame to backend server (called from content script Scheduler).
  */
-async function sendFrameToServer(base64Jpg) {
+async function sendFrameToServer(base64Jpg, rowIndex) {
   if (!isCapturing || isIgnoring) return;
 
   try {
     const res = await fetch("http://127.0.0.1:5000/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: base64Jpg })
+      body: JSON.stringify({ image: base64Jpg, row_index: rowIndex })
     });
     
     if (res.ok) {
@@ -117,7 +117,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ status: "stopped" });
   } 
   else if (message.action === "send-frame") {
-    sendFrameToServer(message.dataUrl);
+    sendFrameToServer(message.dataUrl, message.rowIndex);
     sendResponse({ status: "sending" });
   }
   else if (message.action === "get-status") {

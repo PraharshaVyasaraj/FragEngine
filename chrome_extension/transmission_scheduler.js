@@ -10,11 +10,8 @@
 const TransmissionScheduler = (() => {
   const SEND_INTERVAL_MS = 360;
 
-  let lastSendTime = 0;
-  let latestFrame = null;
-  let pendingSend = false;
-  let sendTimer = null;
-  let lastSentImageData = null;
+  let lastSendTimes = [0, 0, 0, 0];
+  let lastSentSegments = [null, null, null, null];
 
   // Diagnostics
   let stats = {
@@ -54,82 +51,59 @@ const TransmissionScheduler = (() => {
   }
 
   /**
-   * Evaluate a frame for transmission.
-   * Called every 200ms during Rapid mode.
-   * @param {Object} frame — { dataUrl, imageData, hasChanged }
+   * Evaluate a frame's segments for transmission.
+   * @param {Object} frame — { dataUrl, imageData, hasChanged, segments }
    */
   function evaluate(frame) {
-    // Client-side similarity suppression (V0.14.3)
-    if (lastSentImageData && frame.imageData) {
-      if (isSimilarFrame(frame.imageData, lastSentImageData)) {
-        stats.framesRejected++;
-        return; // Suppress duplicate
-      }
-    }
-
-    latestFrame = frame;
+    if (!frame.segments) return;
+    
     const now = Date.now();
-    const elapsed = now - lastSendTime;
-
-    if (elapsed >= SEND_INTERVAL_MS) {
-      // Send immediately
-      send();
-    } else {
-      // Schedule send at end of window if not already scheduled
-      stats.framesRejected++;
-      stats.nextSendIn = SEND_INTERVAL_MS - elapsed;
+    
+    frame.segments.forEach((segment, s) => {
+      // 1. Gating check: has this specific row changed?
+      if (!segment.hasChanged) return;
       
-      if (!pendingSend) {
-        pendingSend = true;
-        sendTimer = setTimeout(() => {
-          send();
-          pendingSend = false;
-        }, SEND_INTERVAL_MS - elapsed);
+      // 2. Feed icon presence check on this segment
+      const feedPresent = FeedDetector.detect(segment.imageData);
+      if (!feedPresent) return;
+      
+      // 3. Client-side similarity suppression
+      const lastSent = lastSentSegments[s];
+      if (lastSent && isSimilarFrame(segment.imageData, lastSent)) {
+        stats.framesRejected++;
+        return;
       }
-    }
-  }
-
-  /**
-   * Send the latest frame to the Flask backend.
-   */
-  function send() {
-    if (!latestFrame) return;
-
-    const frame = latestFrame;
-    latestFrame = null;
-    lastSendTime = Date.now();
-    stats.framesSent++;
-    stats.lastSendTimestamp = new Date().toISOString();
-    stats.nextSendIn = SEND_INTERVAL_MS;
-
-    // Cache binarized mask of the sent frame
-    if (frame.imageData) {
-      lastSentImageData = new ImageData(
-        new Uint8ClampedArray(frame.imageData.data),
-        frame.imageData.width,
-        frame.imageData.height
-      );
-    }
-
-    // Send to background worker for server POST
-    chrome.runtime.sendMessage({
-      action: "send-frame",
-      dataUrl: frame.dataUrl
-    }).catch(() => {});
+      
+      // 4. Rate-limit check per row
+      const elapsed = now - lastSendTimes[s];
+      if (elapsed >= SEND_INTERVAL_MS) {
+        lastSendTimes[s] = now;
+        stats.framesSent++;
+        stats.lastSendTimestamp = new Date().toISOString();
+        
+        lastSentSegments[s] = new ImageData(
+          new Uint8ClampedArray(segment.imageData.data),
+          segment.imageData.width,
+          segment.imageData.height
+        );
+        
+        chrome.runtime.sendMessage({
+          action: "send-frame",
+          dataUrl: segment.dataUrl,
+          rowIndex: s
+        }).catch(() => {});
+      } else {
+        stats.framesRejected++;
+      }
+    });
   }
 
   /**
    * Reset scheduler state (called when capture stops).
    */
   function reset() {
-    lastSendTime = 0;
-    latestFrame = null;
-    pendingSend = false;
-    lastSentImageData = null;
-    if (sendTimer) {
-      clearTimeout(sendTimer);
-      sendTimer = null;
-    }
+    lastSendTimes = [0, 0, 0, 0];
+    lastSentSegments = [null, null, null, null];
     stats = {
       framesSent: 0,
       framesRejected: 0,

@@ -26,11 +26,11 @@ class TelemetryCollector:
         dq_log_path = os.path.join(self.session_dir, "data_quality.log")
         self.validator = DataQualityValidator(log_path=dq_log_path)
         
-        # Initialize CSV Header with Engine_Version column
+        # Initialize CSV Header with Engine_Version and Row_Index columns
         with open(self.csv_path, "w", encoding="utf-8") as f:
             f.write("Timestamp,CPU_Percent,RAM_MB,GPU_Percent,Active_Threads,Voluntary_Ctx_Switches,Involuntary_Ctx_Switches,"
                     "Decode_ms,Preprocess_ms,OCR_ms,IconMatch_ms,DictCorrection_ms,Total_Latency_ms,"
-                    "OCR_Confidence_Avg,Avg_Levenshtein_Dist,Dict_Hits,Suppressed_Duplicates,Engine_Version\n")
+                    "OCR_Confidence_Avg,Avg_Levenshtein_Dist,Dict_Hits,Suppressed_Duplicates,Engine_Version,Row_Index\n")
             
         # State Tracking
         self.process = psutil.Process(os.getpid())
@@ -119,13 +119,14 @@ class TelemetryCollector:
                         "Avg_Levenshtein_Dist": "Average Levenshtein distance for corrected player names.",
                         "Dict_Hits": "Total number of dictionary auto-corrections applied in the session.",
                         "Suppressed_Duplicates": "Count of frames rejected as duplicate occurrences.",
-                        "Engine_Version": "Version of the FragEngine codebase running this session."
+                        "Engine_Version": "Version of the FragEngine codebase running this session.",
+                        "Row_Index": "Row position index of the crop segment in the feed ROI (0-3)."
                     }
                 },
                 "event_log_ql": {
                     "columns": {
                         "Log #": "Incremental transaction index of approved events.",
-                        "Layout Type": "Layout structure detected (1T2I, 2T2I).",
+                        "Layout Type": "Layout structure detected (T1I2, T2I2).",
                         "T1": "First parsed player name.",
                         "I1": "Primary action event type (KNOCK, FINISH, ZONE, etc.).",
                         "I2": "Secondary action event type.",
@@ -230,21 +231,22 @@ class TelemetryCollector:
                         "DictCorrection_ms": 0.0,
                         "Total_Latency_ms": 0.0,
                         "OCR_Confidence_Avg": 0.0,
-                        "Avg_Levenshtein_Dist": 0.0
+                        "Avg_Levenshtein_Dist": 0.0,
+                        "Row_Index": -1
                     }
                     # Validate row before committing (DQ Check)
                     self.validator.validate_telemetry_row(row_data)
                     
                     with open(self.csv_path, "a", encoding="utf-8") as f:
                         f.write(f"{timestamp},{cpu_sys:.1f},{ram_mb:.1f},{gpu_sys:.1f},{thread_count},{vol_ctx},{invol_ctx},"
-                                f"0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,{self.version}\n")
+                                f"0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,{self.version},-1\n")
                                 
             except Exception as e:
                 print(f"[TELEMETRY ERROR] Error in hardware sampler loop: {e}")
                 
             time.sleep(0.5)
 
-    def log_request_performance(self, stages_ms, total_ms, dict_hits_count=0, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="logged"):
+    def log_request_performance(self, stages_ms, total_ms, dict_hits_count=0, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="logged", row_index=0):
         """Logs a single pipeline processing event with exact stage latency profiling"""
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         
@@ -299,7 +301,8 @@ class TelemetryCollector:
                     "DictCorrection_ms": dict_corr,
                     "Total_Latency_ms": total_ms,
                     "OCR_Confidence_Avg": ocr_confidence,
-                    "Avg_Levenshtein_Dist": levenshtein_dist
+                    "Avg_Levenshtein_Dist": levenshtein_dist,
+                    "Row_Index": row_index
                 }
                 self.validator.validate_telemetry_row(row_data)
                 
@@ -307,7 +310,7 @@ class TelemetryCollector:
                 with open(self.csv_path, "a", encoding="utf-8") as f:
                     f.write(f"{timestamp},{cpu_sys:.1f},{ram_mb:.1f},{gpu_sys:.1f},{thread_count},{vol_ctx},{invol_ctx},"
                             f"{dec:.2f},{prep:.2f},{ocr:.2f},{match:.2f},{dict_corr:.2f},{total_ms:.2f},"
-                            f"{ocr_confidence:.4f},{levenshtein_dist:.2f},{dict_hits_count},{1 if duplicate_blocked else 0},{self.version}\n")
+                            f"{ocr_confidence:.4f},{levenshtein_dist:.2f},{dict_hits_count},{1 if duplicate_blocked else 0},{self.version},{row_index}\n")
                             
         except Exception as e:
             print(f"[TELEMETRY ERROR] Error logging request performance: {e}")
