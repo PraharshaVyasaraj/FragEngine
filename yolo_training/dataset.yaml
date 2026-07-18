@@ -1,0 +1,14 @@
+path: C:/FragEngine/yolo_training/dataset
+train: images/train
+val: images/val
+
+# Map your custom icon class IDs and names here
+names:
+  0: ZONE
+  1: FALL
+  2: DROWN
+  3: KNOCK
+  4: FINISH
+  5: MELEE
+  6: THROWABLES
+  7: VEHICLES
