@@ -34,7 +34,9 @@ async function sendFrameToServer(t1Image, t2Image, iconImage, rowIndex) {
       if (result.status === "duplicate") {
         chrome.runtime.sendMessage({
           action: "frame-previews",
-          raw: iconImage,
+          t1: t1Image,
+          icons: iconImage,
+          t2: t2Image,
           status: "duplicate"
         }).catch(() => {});
         return;
@@ -56,7 +58,9 @@ async function sendFrameToServer(t1Image, t2Image, iconImage, rowIndex) {
         // Update previews with the parsed data
         chrome.runtime.sendMessage({
           action: "frame-previews",
-          raw: iconImage,
+          t1: t1Image,
+          icons: iconImage,
+          t2: t2Image,
           status: "logged",
           data: result.data
         }).catch(() => {});
@@ -72,7 +76,9 @@ async function sendFrameToServer(t1Image, t2Image, iconImage, rowIndex) {
     console.log("Error sending frame to server:", err);
     chrome.runtime.sendMessage({
       action: "frame-previews",
-      raw: iconImage,
+      t1: t1Image,
+      icons: iconImage,
+      t2: t2Image,
       status: "server_offline"
     }).catch(() => {});
   }

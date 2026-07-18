@@ -59,14 +59,18 @@
   <div class="panel">
     <div class="panel-header">Current Frame Analysis</div>
     
-    <div class="preview-container" style="margin-bottom: 8px;">
+    <div class="preview-container" style="margin-bottom: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
       <div class="preview-box">
-        <canvas id="canvasRaw"></canvas>
-        <div class="preview-title">RAW CROP</div>
+        <canvas id="canvasT1" style="width: 100%; height: 36px; background-color: #12161f; border: 1px solid rgba(52, 152, 219, 0.3);"></canvas>
+        <div class="preview-title" style="font-size: 9px; color: #3498db; text-align: center; margin-top: 2px;">T1 NAME</div>
       </div>
       <div class="preview-box">
-        <canvas id="canvasBin"></canvas>
-        <div class="preview-title">BIN MASK</div>
+        <canvas id="canvasIcons" style="width: 100%; height: 36px; background-color: #12161f; border: 1px solid rgba(191, 161, 95, 0.4);"></canvas>
+        <div class="preview-title" style="font-size: 9px; color: #bfa15f; text-align: center; margin-top: 2px;">ICONS</div>
+      </div>
+      <div class="preview-box">
+        <canvas id="canvasT2" style="width: 100%; height: 36px; background-color: #12161f; border: 1px solid rgba(52, 152, 219, 0.3);"></canvas>
+        <div class="preview-title" style="font-size: 9px; color: #3498db; text-align: center; margin-top: 2px;">T2 NAME</div>
       </div>
     </div>
     

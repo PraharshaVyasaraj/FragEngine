@@ -11,6 +11,7 @@
 let videoElement = null;
 let overlayDiv = null;
 let selectCanvas = null;
+let activeRoiOverlay = null;
 
 let startX = 0, startY = 0;
 let isDragging = false;
@@ -162,11 +163,88 @@ function startCalibration() {
     }).catch(() => {});
     
     // Auto-close overlay
-    setTimeout(() => removeCalibrationOverlay(), 300);
+    setTimeout(() => {
+      removeCalibrationOverlay();
+      drawActiveROIs();
+    }, 300);
   });
   
   document.body.appendChild(overlayDiv);
 }
+
+function drawActiveROIs() {
+  removeActiveROIOverlay();
+  
+  videoElement = findVideo();
+  if (!videoElement || !roiCoords) return;
+  
+  const rect = videoElement.getBoundingClientRect();
+  
+  activeRoiOverlay = document.createElement("div");
+  activeRoiOverlay.style.position = "absolute";
+  activeRoiOverlay.style.top = `${rect.top + window.scrollY}px`;
+  activeRoiOverlay.style.left = `${rect.left + window.scrollX}px`;
+  activeRoiOverlay.style.width = `${rect.width}px`;
+  activeRoiOverlay.style.height = `${rect.height}px`;
+  activeRoiOverlay.style.zIndex = "2147483646";
+  activeRoiOverlay.style.pointerEvents = "none";
+  activeRoiOverlay.style.boxSizing = "border-box";
+  
+  const drawBox = (subRoi, borderColor, bgColor, labelText, isSplit = false) => {
+    if (!subRoi) return;
+    const box = document.createElement("div");
+    box.style.position = "absolute";
+    box.style.left = `${subRoi.x1_ratio * rect.width}px`;
+    box.style.top = `${subRoi.y1_ratio * rect.height}px`;
+    box.style.width = `${(subRoi.x2_ratio - subRoi.x1_ratio) * rect.width}px`;
+    box.style.height = `${(subRoi.y2_ratio - subRoi.y1_ratio) * rect.height}px`;
+    box.style.border = `1px dashed ${borderColor}`;
+    box.style.backgroundColor = bgColor;
+    box.style.boxSizing = "border-box";
+    
+    // Label badge
+    const badge = document.createElement("div");
+    badge.innerText = labelText;
+    badge.style.position = "absolute";
+    badge.style.top = "-14px";
+    badge.style.left = "0";
+    badge.style.background = borderColor;
+    badge.style.color = "#000";
+    badge.style.fontFamily = "monospace";
+    badge.style.fontSize = "8px";
+    badge.style.padding = "1px 3px";
+    badge.style.borderRadius = "2px";
+    badge.style.fontWeight = "bold";
+    box.appendChild(badge);
+    
+    if (isSplit) {
+      const line = document.createElement("div");
+      line.style.position = "absolute";
+      line.style.left = "50%";
+      line.style.top = "0";
+      line.style.bottom = "0";
+      line.style.borderLeft = `1px dotted ${borderColor}`;
+      box.appendChild(line);
+    }
+    
+    activeRoiOverlay.appendChild(box);
+  };
+  
+  drawBox(roiCoords.t1, "#3498db", "rgba(52, 152, 219, 0.05)", "T1 NAME");
+  drawBox(roiCoords.icons, "#bfa15f", "rgba(191, 161, 95, 0.05)", "ICONS", true);
+  drawBox(roiCoords.t2, "#3498db", "rgba(52, 152, 219, 0.05)", "T2 NAME");
+  
+  document.body.appendChild(activeRoiOverlay);
+}
+
+function removeActiveROIOverlay() {
+  if (activeRoiOverlay) {
+    activeRoiOverlay.remove();
+    activeRoiOverlay = null;
+  }
+}
+
+window.addEventListener("resize", drawActiveROIs);
 
 function removeCalibrationOverlay() {
   if (overlayDiv) {
@@ -335,16 +413,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse(res);
   }
   else if (message.action === "start-sampling") {
-    // V0.14: Start the sampling engine (Normal mode)
     if (message.roi) {
       roiCoords = message.roi;
     }
     SamplingEngine.start();
+    drawActiveROIs();
     sendResponse({ status: "sampling_started" });
   }
   else if (message.action === "stop-sampling") {
     SamplingEngine.stop();
     prevFrameGray = null;
+    removeActiveROIOverlay();
     sendResponse({ status: "sampling_stopped" });
   }
   else if (message.action === "get-diagnostics") {
@@ -365,6 +444,7 @@ function checkAutoStart() {
       if (result.alwaysOn && result.roi) {
         roiCoords = result.roi;
         SamplingEngine.start();
+        drawActiveROIs();
         chrome.runtime.sendMessage({
           action: "auto-start-capture",
           roi: result.roi
@@ -381,6 +461,7 @@ function checkAutoStart() {
           if (result.alwaysOn && result.roi) {
             roiCoords = result.roi;
             SamplingEngine.start();
+            drawActiveROIs();
             chrome.runtime.sendMessage({
               action: "auto-start-capture",
               roi: result.roi

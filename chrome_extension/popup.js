@@ -13,8 +13,9 @@ const btnExport = document.getElementById("btnExport");
 const btnStart = document.getElementById("btnStart");
 const btnStop = document.getElementById("btnStop");
 
-const canvasRaw = document.getElementById("canvasRaw");
-const canvasBin = document.getElementById("canvasBin");
+const canvasT1 = document.getElementById("canvasT1");
+const canvasIcons = document.getElementById("canvasIcons");
+const canvasT2 = document.getElementById("canvasT2");
 
 const lblDuration = document.getElementById("lblDuration");
 const lblSamplingMode = document.getElementById("lblSamplingMode");
@@ -252,7 +253,7 @@ chrome.runtime.onMessage.addListener((message) => {
     }
   }
   else if (message.action === "frame-previews") {
-    renderRawPreview(message.raw);
+    renderPreviews(message.t1, message.icons, message.t2);
     
     // Process real-time engine diagnostics (V0.14)
     if (message.diagnostics) {
@@ -326,37 +327,27 @@ function updateDiagnosticsUI(diag) {
   }
 }
 
-// Render previews (Canvas Raw and Canvas Bin)
-function renderRawPreview(dataUrl) {
-  if (!dataUrl) return;
-  const img = new Image();
-  img.onload = () => {
-    canvasRaw.width = img.width;
-    canvasRaw.height = img.height;
-    const ctxRaw = canvasRaw.getContext("2d");
-    ctxRaw.drawImage(img, 0, 0);
-
-    canvasBin.width = img.width;
-    canvasBin.height = img.height;
-    const ctxBin = canvasBin.getContext("2d", { willReadFrequently: true });
-    ctxBin.drawImage(img, 0, 0);
-    const imgData = ctxBin.getImageData(0, 0, canvasBin.width, canvasBin.height);
-    const data = imgData.data;
-    
-    // Apply local binarization preview
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i+1];
-      const b = data[i+2];
-      const v = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const thresh = v > 180 ? 255 : 0;
-      data[i] = thresh;
-      data[i+1] = thresh;
-      data[i+2] = thresh;
+// Render previews for all 3 segments separately in real-time
+function renderPreviews(t1Url, iconsUrl, t2Url) {
+  const drawToCanvas = (canvas, dataUrl) => {
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!dataUrl) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
     }
-    ctxBin.putImageData(imgData, 0, 0);
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = dataUrl;
   };
-  img.src = dataUrl;
+
+  drawToCanvas(canvasT1, t1Url);
+  drawToCanvas(canvasIcons, iconsUrl);
+  drawToCanvas(canvasT2, t2Url);
 }
 
 function appendLogTableRowUI(log) {
