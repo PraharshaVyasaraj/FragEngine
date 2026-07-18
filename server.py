@@ -13,10 +13,13 @@ import atexit
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from parser import FeedParser
-
-# Setup telemetry collector path
-base_dir = r"C:\FragEngine"
 from backend.telemetry import TelemetryCollector
+from utils.loader import load_config, load_reference_datasets
+
+# Load configuration centrally
+config = load_config()
+base_dir = config.get("base_dir", r"C:\FragEngine")
+ql_path = config.get("ql_path", os.path.join(base_dir, "QL.csv"))
 
 # Initialize Telemetry
 telemetry = TelemetryCollector(base_dir)
@@ -37,40 +40,13 @@ atexit.register(telemetry.stop)
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Paths
-base_dir = r"C:\FragEngine"
-icons_dir = r"C:\FragEngine\icons"
-ql_path = os.path.join(base_dir, "QL.csv")
-
-
-# Initialize Parser
+# Paths and parser initialization
+icons_dir = config.get("icons_dir", os.path.join(base_dir, "icons"))
 parser = FeedParser(icons_dir)
 
-# Load Dictionaries for Soft Auto-Correction
-team_tags = []
-tags_path = os.path.join(base_dir, "Dataset", "TeamTags", "Team_Tags_Dataset_For_Training.csv")
-if os.path.exists(tags_path):
-    try:
-        with open(tags_path, "r", encoding="utf-8") as f:
-            # Skip CSV header
-            team_tags = [line.strip().upper() for line in f.readlines()[1:] if line.strip()]
-    except Exception as e:
-        print(f"Error loading TeamTags CSV: {e}")
-
-player_names = []
-players_path = os.path.join(base_dir, "Dataset", "PlayerNames", "PlayerNames_Dataset_For_Training.csv")
-if os.path.exists(players_path):
-    try:
-        with open(players_path, "r", encoding="utf-8") as f:
-            # Skip CSV header
-            for line in f.readlines()[1:]:
-                parts = line.strip().split(",")
-                if len(parts) >= 2:
-                    player_names.append(parts[1].strip().upper())
-    except Exception as e:
-        print(f"Error loading PlayerNames CSV: {e}")
-
-print(f"[SERVER V0.12] Loaded {len(team_tags)} Team Tags and {len(player_names)} Player Names for auto-correction.")
+# Load Dictionaries for Soft Auto-Correction using modular loader
+team_tags, player_names = load_reference_datasets(config)
+print(f"[SERVER {config['version']}] Loaded {len(team_tags)} Team Tags and {len(player_names)} Player Names for auto-correction.")
 
 # Initialize QL file
 if not os.path.exists(ql_path):
@@ -94,12 +70,12 @@ if os.path.exists(ql_path):
     except Exception:
         log_counter = 1
 
-
-# --- V1.2 CONFIGURATION CONSTANTS ---
-MIN_NAME_LENGTH          = 3      # Minimum character length for OCR text blocks
-MIN_ICON_CONFIDENCE      = 0.50   # Minimum template match score to accept an icon
-EXPECTED_BG_MAX_BRIGHTNESS = 90   # Kill feed background is DARK. Skip if mean brightness > this threshold.
-
+# --- CONFIGURATION CONSTANTS FROM JSON CONFIG ---
+ocr_conf = config.get("ocr", {})
+MIN_NAME_LENGTH = ocr_conf.get("min_name_length", 3)
+MIN_ICON_CONFIDENCE = ocr_conf.get("min_icon_confidence", 0.50)
+RATE_LIMIT_SEC = ocr_conf.get("rate_limit_sec", 0.400)
+EXPECTED_BG_MAX_BRIGHTNESS = 90
 
 def correct_word_via_dict(word, dictionary, threshold=0.85):
     """Fuzzy match word against dictionary. Snaps to closest match if similarity >= threshold."""
@@ -111,31 +87,22 @@ def correct_word_via_dict(word, dictionary, threshold=0.85):
         return matches[0]
     return word_upper
 
-
 def clean_and_normalize_name(name):
     """
-    V1.2 Soft Dictionary Auto-Corrector and Noise Stripper:
-    1. Strip isolated trailing fragments like 'OV', 'ooy', or '[06]'.
+    Soft Dictionary Auto-Corrector and Noise Stripper:
+    1. Strip isolated trailing fragments.
     2. Strip anything after a space.
     3. Split name by common separators (-, ~, _, x).
-    4. Fuzzy match tag and name separately. Snaps if match confidence >= 85%, else leaves raw.
-    Returns (cleaned_name, corrections_count)
+    4. Fuzzy match tag and name separately.
     """
     if not name:
         return "", 0
 
     corrections_count = 0
-    # Clean leading digits (squad/team numbers)
     name = name.strip()
     name = re.sub(r"^\d+\s+", "", name)
-
-    # Strip bracket noise like '[06]', '[O6]'
     name = re.sub(r"\[.*?\]", "", name)
-
-    # Strip anything after a space (clan tags/status icons read as space-delimited text)
     name = name.split(" ")[0].strip()
-
-    # Split by standard separators: - or ~ or _ or x
     parts = re.split(r"([-~_x])", name, maxsplit=1)
     
     if len(parts) >= 3:
@@ -143,44 +110,36 @@ def clean_and_normalize_name(name):
         separator = parts[1]
         name_part = parts[2]
         
-        # Soft match tag (tags are a smaller list, use 80% threshold)
         corrected_tag = correct_word_via_dict(tag_part, team_tags, threshold=0.80)
         if tag_part and corrected_tag != tag_part.upper():
             corrections_count += 1
             
-        # Soft match name (names are open-ended, use stricter 85% threshold)
         corrected_name = correct_word_via_dict(name_part, player_names, threshold=0.85)
         if name_part and corrected_name != name_part.upper():
             corrections_count += 1
             
-        # Reconstruct normalized string preserving capitalization styling of the separator
         return f"{corrected_tag}{separator}{corrected_name}", corrections_count
     else:
-        # No separator: treat the whole string as a name and attempt a soft match
         corrected_name = correct_word_via_dict(name, player_names, threshold=0.85)
         if name and corrected_name != name.upper():
             corrections_count += 1
         return corrected_name, corrections_count
 
-
 def is_fuzzy_duplicate(entry1, entry2):
     """
-    V1.2 Fuzzy Deduplication:
+    Fuzzy Deduplication:
     Compares two log entries (layout, t1, i1, i2, t2) to determine if they are duplicates.
     Requires layout and icons to match exactly, and T1/T2 strings to be >= 82% similar.
     """
     if not entry1 or not entry2:
         return False
-    # entry format: (layout, t1, i1, i2, t2)
     if entry1[0] != entry2[0] or entry1[2] != entry2[2] or entry1[3] != entry2[3]:
         return False
     
-    # Compare T1
     t1_similarity = difflib.SequenceMatcher(None, entry1[1].upper(), entry2[1].upper()).ratio()
     if t1_similarity < 0.82:
         return False
         
-    # Compare T2 (if present)
     if entry1[4] or entry2[4]:
         if not entry1[4] or not entry2[4]:
             return False
@@ -189,7 +148,6 @@ def is_fuzzy_duplicate(entry1, entry2):
             return False
             
     return True
-
 
 @app.route("/process", methods=["POST"])
 def process_frame():
@@ -225,9 +183,6 @@ def process_frame():
         if img is None:
             return jsonify({"status": "error", "message": "Failed to decode frame"}), 400
 
-        # ─────────────────────────────────────────────────────────
-        # V1.1 STAGE 1.5: BACKGROUND BRIGHTNESS SANITY CHECK
-        # ─────────────────────────────────────────────────────────
         t_prep_start = time.perf_counter()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         mean_brightness = float(np.mean(gray))
@@ -235,18 +190,15 @@ def process_frame():
             stages_ms["preprocess"] = (time.perf_counter() - t_prep_start) * 1000
             total_ms = (time.perf_counter() - t_start) * 1000
             
-            # Log skipped performance
             telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped")
             print(f"[WALL BLOCKED] Bright frame (brightness={mean_brightness:.1f}) — likely UI noise, skipping OCR")
             return jsonify({"status": "skipped", "reason": f"Bright frame: {mean_brightness:.1f}"})
 
-        # 1.5x Cubic Upscale for OCR legibility (reduced from 3.0x in V0.16 for OpenVINO speed optimization)
+        # 1.5x Cubic Upscale for OCR legibility
         img_upscaled = cv2.resize(img, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
         stages_ms["preprocess"] = (time.perf_counter() - t_prep_start) * 1000
 
-        # ─────────────────────────────────────────────────────────
-        # V1.2 STAGE 2: OCR + TEMPLATE MATCH PIPELINE
-        # ─────────────────────────────────────────────────────────
+        # OCR + TEMPLATE MATCH PIPELINE
         res = parser.process_frame(img_upscaled)
 
         if res is None or res.get("status") == "unrecognizable":
@@ -256,32 +208,40 @@ def process_frame():
             telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped")
             return jsonify({"status": "skipped", "reason": "Unrecognizable layout"})
 
-        # Retrieve sub-stage timings and confidence from parser
-        stages_ms["ocr"] = res.get("_timings", {}).get("ocr", 0.0)
-        stages_ms["icon_match"] = res.get("_timings", {}).get("icon_match", 0.0)
+        # Retrieve timings and confidence from parser
+        stages_ms["ocr"] = res["_timings"].get("ocr", 0.0)
+        stages_ms["icon_match"] = res["_timings"].get("icon_match", 0.0)
         ocr_confidence = res.get("ocr_confidence", 0.0)
 
+        # Event level data quality check
+        telemetry.validator.validate_parsed_event(res)
+
         # ─────────────────────────────────────────────────────────
-        # V1.2 DATA CLEANING & AUTO-CORRECTION (with Server Lock)
+        # STAGE 3: SOFT DICTIONARY AUTO-CORRECTION
+        # ─────────────────────────────────────────────────────────
+        t_dict_start = time.perf_counter()
+        t1_raw = res["t1"]
+        t2_raw = res["t2"]
+
+        t1_clean, t1_corr = clean_and_normalize_name(t1_raw)
+        t2_clean, t2_corr = clean_and_normalize_name(t2_raw)
+
+        res["t1"] = t1_clean
+        res["t2"] = t2_clean
+
+        dict_hits_count = t1_corr + t2_corr
+        stages_ms["dict_correction"] = (time.perf_counter() - t_dict_start) * 1000
+
+        # Calculate Levenshtein distance if correction occurred
+        if dict_hits_count > 0:
+            l1 = difflib.SequenceMatcher(None, t1_raw.upper(), t1_clean.upper()).distance() if hasattr(difflib.SequenceMatcher, 'distance') else 1.0
+            l2 = difflib.SequenceMatcher(None, t2_raw.upper(), t2_clean.upper()).distance() if hasattr(difflib.SequenceMatcher, 'distance') else 1.0
+            levenshtein_dist = float(l1 + l2) / dict_hits_count
+
+        # ─────────────────────────────────────────────────────────
+        # STAGE 4: CONCURRENCY & DEDUPLICATION GATES
         # ─────────────────────────────────────────────────────────
         with server_lock:
-            t_dict_start = time.perf_counter()
-            t1_orig = res.get("t1", "") or ""
-            t2_orig = res.get("t2", "") or ""
-            
-            res["t1"], corrections_1 = clean_and_normalize_name(t1_orig)
-            res["t2"], corrections_2 = clean_and_normalize_name(t2_orig)
-            dict_hits_count = corrections_1 + corrections_2
-            
-            # Calculate Levenshtein edit distance
-            import Levenshtein
-            t1_edit = Levenshtein.distance(t1_orig.upper(), res["t1"].upper()) if corrections_1 > 0 else 0
-            t2_edit = Levenshtein.distance(t2_orig.upper(), res["t2"].upper()) if corrections_2 > 0 else 0
-            levenshtein_dist = float(t1_edit + t2_edit)
-            
-            stages_ms["dict_correction"] = (time.perf_counter() - t_dict_start) * 1000
-
-            # Minimum name length check (kills transient noise)
             if len(res["t1"]) < MIN_NAME_LENGTH:
                 total_ms = (time.perf_counter() - t_start) * 1000
                 telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="skipped")
@@ -294,44 +254,23 @@ def process_frame():
                 print(f"[WALL BLOCKED] T2 too short: '{res['t2']}'")
                 return jsonify({"status": "skipped", "reason": f"T2 too short: {res['t2']}"})
 
-            # ─────────────────────────────────────────────────────────
-            # V0.14.3 RATE LIMITER: Enforce 400ms delta between logged events
-            # ─────────────────────────────────────────────────────────
+            # Temporal Rate-Limit Gate (400ms threshold)
             current_time = time.time()
-            if current_time - last_log_time < 0.400:
+            if current_time - last_log_time < RATE_LIMIT_SEC:
                 total_ms = (time.perf_counter() - t_start) * 1000
                 telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
-                print(f"[WALL BLOCKED] Rate-limit threshold: <400ms since last log")
-                return jsonify({"status": "duplicate", "reason": "Rate-limit threshold: <400ms since last log"})
+                print(f"[WALL BLOCKED] Rate-limit threshold: <{RATE_LIMIT_SEC * 1000:.0f}ms since last log")
+                return jsonify({"status": "duplicate", "reason": f"Rate-limit threshold: <{RATE_LIMIT_SEC * 1000:.0f}ms since last log"})
 
-            # ─────────────────────────────────────────────────────────
-            # V0.14.3 DEDUPLICATION CHECK
-            # ─────────────────────────────────────────────────────────
-            candidate_entry = (
-                res["layout"],
-                res["t1"],
-                res["i1"],
-                res["i2"],
-                res["t2"] or ""
-            )
-            
+            # Spatial-Similarity Deduplication Gate (82% Levenshtein/Fuzzy match)
+            candidate_entry = (res["layout"], res["t1"], res["i1"], res["i2"], res["t2"])
             is_duplicate = False
             duplicate_reason = ""
-
-            if last_log_entry:
-                # 1. Exact string matches are blocked
-                if candidate_entry == last_log_entry:
+            
+            if last_log_entry is not None:
+                if is_fuzzy_duplicate(candidate_entry, last_log_entry):
                     is_duplicate = True
-                    duplicate_reason = "Exact duplicate of last logged entry"
-                # 2. Same layout & same outcome action check:
-                #    If victim (T2) fuzzy-matches the previous victim name and it is within 5.0 seconds
-                elif candidate_entry[0] == last_log_entry[0] and candidate_entry[3] == last_log_entry[3]:
-                    # Verify both victim names are present
-                    if candidate_entry[4] and last_log_entry[4]:
-                        t2_similarity = difflib.SequenceMatcher(None, candidate_entry[4].upper(), last_log_entry[4].upper()).ratio()
-                        if t2_similarity >= 0.82 and (current_time - last_log_time < 5.0):
-                            is_duplicate = True
-                            duplicate_reason = f"Fuzzy victim duplicate: '{candidate_entry[4]}' matches last log victim '{last_log_entry[4]}'"
+                    duplicate_reason = f"Duplicate event structure: {candidate_entry} matching previous log"
 
             if is_duplicate:
                 total_ms = (time.perf_counter() - t_start) * 1000
@@ -339,9 +278,7 @@ def process_frame():
                 print(f"[WALL BLOCKED] Duplicate: {duplicate_reason}")
                 return jsonify({"status": "duplicate", "reason": duplicate_reason})
 
-            # ─────────────────────────────────────────────────────────
             # APPROVED -> Update State, Write to CSV
-            # ─────────────────────────────────────────────────────────
             last_log_time = current_time
             last_log_entry = candidate_entry
             log_line = f"Log {log_counter} | {res['layout']} | {res['t1']} | {res['i1']} | {res['i2']} | {res['t2']}\n"
@@ -369,5 +306,5 @@ def process_frame():
 
 
 if __name__ == "__main__":
-    print("FragEngine V0.14 — Active (FragLab Analytics)")
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    print(f"FragEngine {config['version']} — Active (FragLab Analytics)")
+    app.run(host=config["server"]["host"], port=config["server"]["port"], debug=config["server"]["debug"])

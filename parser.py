@@ -1,20 +1,22 @@
 import os
-# Direct OpenVINO execution target to GPU (Intel iGPU UHD 770)
-os.environ["OPENVINO_DEVICE"] = "GPU"
-
 import cv2
 import numpy as np
+import time
 from paddleocr import PaddleOCR
+from utils.loader import load_config
+
+# Load system config
+config = load_config()
+os.environ["OPENVINO_DEVICE"] = "GPU"
 
 class FeedParser:
-    def __init__(self, icons_dir):
-        self.icons_dir = icons_dir
+    def __init__(self, icons_dir=None):
+        self.config = load_config()
+        self.icons_dir = icons_dir if icons_dir else self.config.get("icons_dir", r"C:\FragEngine\icons")
         self.templates = {}
         self.last_trace = {}
-        # PP-OCRv5 Mobile — fastest stable model for short game text on Windows
-        # use_angle_cls=False: kill feed text is always horizontal, skip rotation model
-        # use_gpu=False:       run on CPU; OpenVINO handles iGPU acceleration separately
-        # rec_model_dir=None:  auto-select PP-OCRv5 Mobile rec weights from PaddleOCR 2.7.x
+        
+        # OpenVINO target configuration
         # Try OpenVINO GPU -> OpenVINO CPU -> Standard CPU
         try:
             self.ocr = PaddleOCR(
@@ -29,7 +31,8 @@ class FeedParser:
                 rec_image_shape='3, 32, 160',
                 rec_batch_num=2
             )
-        except Exception as e:
+            print("[PARSER] PaddleOCR initialized with OpenVINO target: GPU")
+        except Exception:
             try:
                 self.ocr = PaddleOCR(
                     use_angle_cls=False,
@@ -43,7 +46,8 @@ class FeedParser:
                     rec_image_shape='3, 32, 160',
                     rec_batch_num=2
                 )
-            except Exception as e2:
+                print("[PARSER] PaddleOCR initialized with OpenVINO target: CPU")
+            except Exception:
                 self.ocr = PaddleOCR(
                     use_angle_cls=False,
                     lang='en',
@@ -54,6 +58,8 @@ class FeedParser:
                     rec_image_shape='3, 32, 160',
                     rec_batch_num=2
                 )
+                print("[PARSER] PaddleOCR initialized with Standard CPU target")
+                
         self.load_all_templates()
         
     def load_template(self, path):
@@ -192,11 +198,9 @@ class FeedParser:
         h, w, _ = img.shape
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        import time
         t_ocr_start = time.perf_counter()
         
-        # Run PP-OCRv5 Mobile text extraction (PaddleOCR 2.7.x API)
-        # Returns: [ [ [ [x,y]x4 ], (text, prob) ], ... ] per page
+        # Run PP-OCR text extraction
         results = self.ocr.ocr(img, cls=False)
         t_ocr_end = time.perf_counter()
         ocr_ms = (t_ocr_end - t_ocr_start) * 1000
@@ -292,12 +296,6 @@ class FeedParser:
         i1_score = 0.0
         i2_score = 0.0
         
-        if layout == "2T2I":
-            if len(extracted_icons) >= 2:
-                action_crop = extracted_icons[0]
-                state_crop = extracted_icons[1]
-                
-                # Match action icon against special categories (GRENADE maps to THROWABLE)
         # Trace contour extraction
         for c in contours:
             x, y, cw, ch = cv2.boundingRect(c)

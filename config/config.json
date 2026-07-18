@@ -1,0 +1,20 @@
+{
+  "version": "0.16.0",
+  "base_dir": "C:\\FragEngine",
+  "icons_dir": "C:\\FragEngine\\icons",
+  "ql_path": "C:\\FragEngine\\QL.csv",
+  "datasets": {
+    "team_tags_path": "C:\\FragEngine\\Dataset\\TeamTags\\Team_Tags_Dataset_For_Training.csv",
+    "player_names_path": "C:\\FragEngine\\Dataset\\PlayerNames\\PlayerNames_Dataset_For_Training.csv"
+  },
+  "ocr": {
+    "min_name_length": 3,
+    "min_icon_confidence": 0.50,
+    "rate_limit_sec": 0.400
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5000,
+    "debug": false
+  }
+}
