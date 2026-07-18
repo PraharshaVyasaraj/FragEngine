@@ -392,37 +392,29 @@ class FeedParser:
         if img_t1 is not None and img_t1.size > 0:
             t_ocr_t1 = time.perf_counter()
             img_t1_upscaled = cv2.resize(img_t1, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
-            res_t1 = self.ocr.ocr(img_t1_upscaled, cls=False)
+            res_t1 = self.ocr.ocr(img_t1_upscaled, det=False, cls=False)
             ocr_ms += (time.perf_counter() - t_ocr_t1) * 1000
             
-            page_results = res_t1[0] if res_t1 and res_t1[0] else []
-            t1_texts = []
-            for line in page_results:
-                bbox, (text, prob) = line
+            if res_t1 and res_t1[0] and res_t1[0][0]:
+                text, prob = res_t1[0][0]
                 if prob > 0.2:
-                    t1_texts.append(text.strip())
+                    t1 = text.strip()
                     ocr_confidences.append(prob)
-            if t1_texts:
-                t1 = " ".join(t1_texts)
 
         # 2. OCR on T2
         layout = "T1I2"
         if img_t2 is not None and img_t2.size > 0:
             t_ocr_t2 = time.perf_counter()
             img_t2_upscaled = cv2.resize(img_t2, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
-            res_t2 = self.ocr.ocr(img_t2_upscaled, cls=False)
+            res_t2 = self.ocr.ocr(img_t2_upscaled, det=False, cls=False)
             ocr_ms += (time.perf_counter() - t_ocr_t2) * 1000
             
-            page_results = res_t2[0] if res_t2 and res_t2[0] else []
-            t2_texts = []
-            for line in page_results:
-                bbox, (text, prob) = line
+            if res_t2 and res_t2[0] and res_t2[0][0]:
+                text, prob = res_t2[0][0]
                 if prob > 0.2:
-                    t2_texts.append(text.strip())
+                    t2 = text.strip()
                     ocr_confidences.append(prob)
-            if t2_texts:
-                t2 = " ".join(t2_texts)
-                layout = "T2I2"
+                    layout = "T2I2"
 
         ocr_confidence_avg = float(np.mean(ocr_confidences)) if ocr_confidences else 0.0
 
