@@ -180,7 +180,19 @@ def is_fuzzy_duplicate(entry1, entry2):
     return True
 
 
-def process_frame_task(image_data, row_index):
+def decode_base64_img(base64_str):
+    if not base64_str:
+        return None
+    try:
+        header, encoded = base64_str.split(",", 1)
+        decoded = base64.b64decode(encoded)
+        np_arr = np.frombuffer(decoded, dtype=np.uint8)
+        return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    except Exception:
+        return None
+
+
+def process_frame_task(t1_image, t2_image, icon_image, row_index):
     """
     Executes the frame parsing, OCR, and validation stages on a standby worker thread.
     """
@@ -199,34 +211,31 @@ def process_frame_task(image_data, row_index):
     levenshtein_dist = 0.0
 
     try:
-        # Decode base64 JPEG frame
+        # Decode base64 JPEG crops
         t_decode_start = time.perf_counter()
-        header, encoded = image_data.split(",", 1)
-        decoded = base64.b64decode(encoded)
-        np_arr = np.frombuffer(decoded, dtype=np.uint8)
-        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        img_icon = decode_base64_img(icon_image)
+        img_t1 = decode_base64_img(t1_image)
+        img_t2 = decode_base64_img(t2_image)
         stages_ms["decode"] = (time.perf_counter() - t_decode_start) * 1000
 
-        if img is None:
-            return {"status": "error", "message": "Failed to decode frame segment"}, 400
+        if img_icon is None:
+            return {"status": "error", "message": "Failed to decode icon crop"}, 400
 
         t_prep_start = time.perf_counter()
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        mean_brightness = float(np.mean(gray))
+        gray_icon = cv2.cvtColor(img_icon, cv2.COLOR_BGR2GRAY)
+        mean_brightness = float(np.mean(gray_icon))
         if mean_brightness > EXPECTED_BG_MAX_BRIGHTNESS:
             stages_ms["preprocess"] = (time.perf_counter() - t_prep_start) * 1000
             total_ms = (time.perf_counter() - t_start) * 1000
             
             telemetry.log_request_performance(stages_ms, total_ms, duplicate_blocked=False, ocr_confidence=0.0, levenshtein_dist=0.0, status="skipped", row_index=row_index)
-            print(f"[WALL BLOCKED] Row {row_index} bright (brightness={mean_brightness:.1f}) — skipping OCR")
+            print(f"[WALL BLOCKED] Row {row_index} bright (brightness={mean_brightness:.1f}) — skipping parsing")
             return {"status": "skipped", "reason": f"Bright frame: {mean_brightness:.1f}"}, 200
 
-        # 1.5x Cubic Upscale for OCR legibility
-        img_upscaled = cv2.resize(img, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
         stages_ms["preprocess"] = (time.perf_counter() - t_prep_start) * 1000
 
         # OCR + TEMPLATE MATCH PIPELINE
-        res = parser.process_frame(img_upscaled)
+        res = parser.process_3rois(img_t1, img_t2, img_icon)
 
         if res is None or res.get("status") == "unrecognizable":
             if res and "_timings" in res:
@@ -335,14 +344,19 @@ def process_frame():
     telemetry.increment_request_count()
     try:
         data = request.json
-        if not data or "image" not in data:
-            return jsonify({"status": "error", "message": "Missing image data"}), 400
+        if not data:
+            return jsonify({"status": "error", "message": "Missing request body"}), 400
 
-        image_data = data["image"]
+        t1_image = data.get("t1_image")
+        t2_image = data.get("t2_image")
+        icon_image = data.get("icon_image")
         row_index = int(data.get("row_index", 0))
 
+        if not icon_image:
+            return jsonify({"status": "error", "message": "Missing icon image crop"}), 400
+
         # Submit task to the pre-warmed affinity-bound thread pool
-        future = executor_pool.submit(process_frame_task, image_data, row_index)
+        future = executor_pool.submit(process_frame_task, t1_image, t2_image, icon_image, row_index)
         res_data, status_code = future.result()
         return jsonify(res_data), status_code
     except Exception as e:

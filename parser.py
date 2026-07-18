@@ -377,3 +377,108 @@ class FeedParser:
             },
             "debug_trace": debug_trace
         }
+
+    def process_3rois(self, img_t1, img_t2, img_icon):
+        """
+        Processes separate T1 name crop, T2 name crop, and Icons crop.
+        """
+        ocr_ms = 0.0
+        
+        t1 = "None"
+        t2 = "None"
+        ocr_confidences = []
+        
+        # 1. OCR on T1
+        if img_t1 is not None and img_t1.size > 0:
+            t_ocr_t1 = time.perf_counter()
+            img_t1_upscaled = cv2.resize(img_t1, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+            res_t1 = self.ocr.ocr(img_t1_upscaled, cls=False)
+            ocr_ms += (time.perf_counter() - t_ocr_t1) * 1000
+            
+            page_results = res_t1[0] if res_t1 and res_t1[0] else []
+            t1_texts = []
+            for line in page_results:
+                bbox, (text, prob) = line
+                if prob > 0.2:
+                    t1_texts.append(text.strip())
+                    ocr_confidences.append(prob)
+            if t1_texts:
+                t1 = " ".join(t1_texts)
+
+        # 2. OCR on T2
+        layout = "T1I2"
+        if img_t2 is not None and img_t2.size > 0:
+            t_ocr_t2 = time.perf_counter()
+            img_t2_upscaled = cv2.resize(img_t2, (0, 0), fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+            res_t2 = self.ocr.ocr(img_t2_upscaled, cls=False)
+            ocr_ms += (time.perf_counter() - t_ocr_t2) * 1000
+            
+            page_results = res_t2[0] if res_t2 and res_t2[0] else []
+            t2_texts = []
+            for line in page_results:
+                bbox, (text, prob) = line
+                if prob > 0.2:
+                    t2_texts.append(text.strip())
+                    ocr_confidences.append(prob)
+            if t2_texts:
+                t2 = " ".join(t2_texts)
+                layout = "T2I2"
+
+        ocr_confidence_avg = float(np.mean(ocr_confidences)) if ocr_confidences else 0.0
+
+        # 3. Process Icons
+        t_match_start = time.perf_counter()
+        i1 = "UNKNOWN"
+        i2 = "UNKNOWN"
+        i1_score = 0.0
+        i2_score = 0.0
+
+        if img_icon is not None and img_icon.size > 0:
+            ih, iw, _ = img_icon.shape
+            if iw > 4:
+                mid_x = iw // 2
+                icon1_crop = img_icon[:, 0:mid_x]
+                icon2_crop = img_icon[:, mid_x:iw]
+                
+                # Convert to grayscale
+                gray1 = cv2.cvtColor(icon1_crop, cv2.COLOR_BGR2GRAY)
+                gray2 = cv2.cvtColor(icon2_crop, cv2.COLOR_BGR2GRAY)
+                
+                evals = [] # debug trace
+                
+                if layout == "T2I2":
+                    match_name, match_score = self.match_icon(gray1, ["THROWABLE", "VEHICLE", "FIST"], evals)
+                    i1_score = float(match_score)
+                    if (match_name == "FIST" and match_score >= 0.40) or (match_name != "FIST" and match_score >= 0.60):
+                        i1 = match_name
+                    else:
+                        i1 = "Weapon"
+                        
+                    match_name2, match_score2 = self.match_icon(gray2, ["KNOCK", "FINISH"], evals)
+                    i2_score = float(match_score2)
+                    i2 = match_name2
+                elif layout == "T1I2":
+                    match_name, match_score = self.match_icon(gray1, ["ZONE", "FALL", "DROWN"], evals)
+                    i1 = match_name
+                    i1_score = float(match_score)
+                    
+                    match_name2, match_score2 = self.match_icon(gray2, ["KNOCK", "FINISH"], evals)
+                    i2 = match_name2
+                    i2_score = float(match_score2)
+
+        match_ms = (time.perf_counter() - t_match_start) * 1000
+
+        return {
+            "layout": layout,
+            "t1": t1,
+            "i1": i1,
+            "i1_confidence": i1_score,
+            "i2": i2,
+            "i2_confidence": i2_score,
+            "t2": t2,
+            "ocr_confidence": ocr_confidence_avg,
+            "_timings": {
+                "ocr": ocr_ms,
+                "icon_match": match_ms
+            }
+        }
