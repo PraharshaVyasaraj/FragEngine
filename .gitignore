@@ -39,3 +39,8 @@ telemetry_logs.csv
 
 # Match session telemetry folders
 data/
+
+# ML models and weights
+*.pt
+yolov8n_openvino_model/
+runs/
