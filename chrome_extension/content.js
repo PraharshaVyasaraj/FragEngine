@@ -135,9 +135,6 @@ function startCalibration() {
       y2 = Math.min(selectCanvas.height, startY + 12);
     }
     
-    // Apply V0.14.3 horizontal buffer margin (+20px) to prevent player name clipping
-    x1 = Math.max(0, x1 - 20);
-    x2 = Math.min(selectCanvas.width, x2 + 20);
 
     roiCoords[currentCalibrationTarget] = {
       x1_ratio: x1 / selectCanvas.width,
