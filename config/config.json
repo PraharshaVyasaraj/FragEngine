@@ -10,7 +10,7 @@
   "ocr": {
     "min_name_length": 3,
     "min_icon_confidence": 0.50,
-    "rate_limit_sec": 0.400,
+    "rate_limit_sec": 0.300,
     "segments_count": 4,
     "num_threads": 8
   },

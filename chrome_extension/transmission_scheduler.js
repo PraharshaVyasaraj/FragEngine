@@ -8,7 +8,7 @@
  */
 
 const TransmissionScheduler = (() => {
-  const SEND_INTERVAL_MS = 360;
+  const SEND_INTERVAL_MS = 300;
 
   let lastSendTimes = [0, 0, 0, 0];
   let lastSentSegments = [null, null, null, null];
