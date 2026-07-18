@@ -60,16 +60,16 @@ const TransmissionScheduler = (() => {
     const now = Date.now();
     
     frame.segments.forEach((segment, s) => {
-      // 1. Gating check: has this specific row changed?
+      // 1. Gating check: has this specific row's icon changed?
       if (!segment.hasChanged) return;
       
-      // 2. Feed icon presence check on this segment
-      const feedPresent = FeedDetector.detect(segment.imageData);
+      // 2. Feed icon presence check on this segment's icon crop
+      const feedPresent = FeedDetector.detect(segment.icon_imageData);
       if (!feedPresent) return;
       
       // 3. Client-side similarity suppression
       const lastSent = lastSentSegments[s];
-      if (lastSent && isSimilarFrame(segment.imageData, lastSent)) {
+      if (lastSent && isSimilarFrame(segment.icon_imageData, lastSent)) {
         stats.framesRejected++;
         return;
       }
@@ -82,14 +82,16 @@ const TransmissionScheduler = (() => {
         stats.lastSendTimestamp = new Date().toISOString();
         
         lastSentSegments[s] = new ImageData(
-          new Uint8ClampedArray(segment.imageData.data),
-          segment.imageData.width,
-          segment.imageData.height
+          new Uint8ClampedArray(segment.icon_imageData.data),
+          segment.icon_imageData.width,
+          segment.icon_imageData.height
         );
         
         chrome.runtime.sendMessage({
           action: "send-frame",
-          dataUrl: segment.dataUrl,
+          t1_image: segment.t1_dataUrl,
+          t2_image: segment.t2_dataUrl,
+          icon_image: segment.icon_dataUrl,
           rowIndex: s
         }).catch(() => {});
       } else {
@@ -117,7 +119,8 @@ const TransmissionScheduler = (() => {
    */
   function getDiagnostics() {
     const now = Date.now();
-    const elapsed = now - lastSendTime;
+    const maxLastSend = Math.max(...lastSendTimes);
+    const elapsed = now - maxLastSend;
     return {
       ...stats,
       nextSendIn: Math.max(0, SEND_INTERVAL_MS - elapsed),

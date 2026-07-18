@@ -1,12 +1,14 @@
 let activeTabId = null;
-let roiCoords = null;
+let roiCoords = { t1: null, t2: null, icons: null };
 let isCapturing = false;
 let logCounter = 1;
 let localLogs = [];
 
 const statusDot = document.getElementById("statusDot");
 const statusLabel = document.getElementById("statusLabel");
-const btnCalibrate = document.getElementById("btnCalibrate");
+const btnCalibrateT1 = document.getElementById("btnCalibrateT1");
+const btnCalibrateT2 = document.getElementById("btnCalibrateT2");
+const btnCalibrateIcons = document.getElementById("btnCalibrateIcons");
 const btnExport = document.getElementById("btnExport");
 const btnStart = document.getElementById("btnStart");
 const btnStop = document.getElementById("btnStop");
@@ -61,11 +63,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         queryActiveDiagnostics();
       } else {
         setUIStopped();
-        if (roiCoords) {
+        if (roiCoords && roiCoords.t1 && roiCoords.t2 && roiCoords.icons) {
           btnStart.disabled = false;
           lblReason.innerText = "CALIBRATION LOADED";
         } else {
-          lblReason.innerText = "AWAITING CALIBRATION";
+          btnStart.disabled = true;
+          let count = 0;
+          if (roiCoords) {
+            if (roiCoords.t1) count++;
+            if (roiCoords.t2) count++;
+            if (roiCoords.icons) count++;
+          }
+          lblReason.innerText = `AWAITING CALIBRATION (${count}/3 LOCKED)`;
         }
       }
     }
@@ -130,11 +139,27 @@ function queryActiveDiagnostics() {
   });
 }
 
-// Calibrate Trigger
-btnCalibrate.addEventListener("click", () => {
+// Calibrate Trigger T1
+btnCalibrateT1.addEventListener("click", () => {
   if (!activeTabId) return;
-  chrome.tabs.sendMessage(activeTabId, { action: "start-calibration" }, () => {
-    lblReason.innerText = "DRAWING ROI OVER KILL FEED...";
+  chrome.tabs.sendMessage(activeTabId, { action: "start-calibration", target: "t1" }, () => {
+    lblReason.innerText = "DRAWING ROI OVER T1 NAME...";
+  });
+});
+
+// Calibrate Trigger T2
+btnCalibrateT2.addEventListener("click", () => {
+  if (!activeTabId) return;
+  chrome.tabs.sendMessage(activeTabId, { action: "start-calibration", target: "t2" }, () => {
+    lblReason.innerText = "DRAWING ROI OVER T2 NAME...";
+  });
+});
+
+// Calibrate Trigger Icons
+btnCalibrateIcons.addEventListener("click", () => {
+  if (!activeTabId) return;
+  chrome.tabs.sendMessage(activeTabId, { action: "start-calibration", target: "icons" }, () => {
+    lblReason.innerText = "DRAWING ROI OVER ICONS...";
   });
 });
 
@@ -171,7 +196,9 @@ function setUIRunning() {
   isCapturing = true;
   btnStart.style.display = "none";
   btnStop.style.display = "block";
-  btnCalibrate.disabled = true;
+  btnCalibrateT1.disabled = true;
+  btnCalibrateT2.disabled = true;
+  btnCalibrateIcons.disabled = true;
   btnExport.disabled = false;
   
   statusDot.className = "status-dot active";
@@ -182,7 +209,9 @@ function setUIStopped() {
   isCapturing = false;
   btnStop.style.display = "none";
   btnStart.style.display = "block";
-  btnCalibrate.disabled = false;
+  btnCalibrateT1.disabled = false;
+  btnCalibrateT2.disabled = false;
+  btnCalibrateIcons.disabled = false;
   
   statusDot.className = "status-dot";
   statusLabel.innerText = "ONLINE (IDLE)";
@@ -195,15 +224,21 @@ function setUIStopped() {
 
 // Receive messages from content script & background worker
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.action === "update-roi") {
+  if (message.action === "update-roi" || message.action === "calibration-locked" || message.action === "calibration-draft") {
     roiCoords = message.roi;
-    btnStart.disabled = false;
-    lblReason.innerText = "ROI LOCKED & READY";
-  } 
-  else if (message.action === "calibration-draft") {
-    roiCoords = message.roi;
-    btnStart.disabled = false;
-    lblReason.innerText = "ROI LOCKED & READY";
+    let count = 0;
+    if (roiCoords) {
+      if (roiCoords.t1) count++;
+      if (roiCoords.t2) count++;
+      if (roiCoords.icons) count++;
+    }
+    if (count === 3) {
+      btnStart.disabled = false;
+      lblReason.innerText = "ROI LOCKED & READY";
+    } else {
+      btnStart.disabled = true;
+      lblReason.innerText = `AWAITING CALIBRATION (${count}/3 LOCKED)`;
+    }
   }
   else if (message.action === "mode-change") {
     if (isCapturing) {

@@ -14,7 +14,12 @@ let selectCanvas = null;
 
 let startX = 0, startY = 0;
 let isDragging = false;
-let roiCoords = null; // Proportional coordinates
+let currentCalibrationTarget = "t1";
+let roiCoords = {
+  t1: null,
+  t2: null,
+  icons: null
+};
 
 let prevFrameGray = null;
 
@@ -133,7 +138,7 @@ function startCalibration() {
     x1 = Math.max(0, x1 - 20);
     x2 = Math.min(selectCanvas.width, x2 + 20);
 
-    roiCoords = {
+    roiCoords[currentCalibrationTarget] = {
       x1_ratio: x1 / selectCanvas.width,
       y1_ratio: y1 / selectCanvas.height,
       x2_ratio: x2 / selectCanvas.width,
@@ -146,23 +151,15 @@ function startCalibration() {
     // Notify background worker and side panel
     chrome.runtime.sendMessage({
       action: "calibration-locked",
+      target: currentCalibrationTarget,
       roi: roiCoords
     }).catch(() => {});
     
     chrome.runtime.sendMessage({
       action: "calibration-draft",
+      target: currentCalibrationTarget,
       roi: roiCoords
     }).catch(() => {});
-    
-    // Preview frame
-    const frameRes = grabFrame(roiCoords);
-    if (frameRes && !frameRes.error) {
-      chrome.runtime.sendMessage({
-        action: "frame-previews",
-        raw: frameRes.dataUrl,
-        status: "skipped"
-      }).catch(() => {});
-    }
     
     // Auto-close overlay
     setTimeout(() => removeCalibrationOverlay(), 300);
@@ -199,115 +196,120 @@ function grabFrame(roi) {
   if (vidW === 0 || vidH === 0) {
     return { error: "Video stream has no dimensions" };
   }
-  
-  const vx1 = Math.floor(roi.x1_ratio * vidW);
-  const vy1 = Math.floor(roi.y1_ratio * vidH);
-  const vx2 = Math.floor(roi.x2_ratio * vidW);
-  const vy2 = Math.floor(roi.y2_ratio * vidH);
-  
-  const cropW = vx2 - vx1;
-  const cropH = vy2 - vy1;
-  
-  if (cropW <= 0 || cropH <= 0) {
+
+  // Fallback if not fully calibrated yet
+  if (!roi || !roi.t1 || !roi.t2 || !roi.icons) {
+    return { error: "Awaiting 3-ROI Calibration" };
+  }
+
+  // Calc crop dims for t1, t2, icons
+  const parseROI = (subRoi) => {
+    const x1 = Math.floor(subRoi.x1_ratio * vidW);
+    const y1 = Math.floor(subRoi.y1_ratio * vidH);
+    const x2 = Math.floor(subRoi.x2_ratio * vidW);
+    const y2 = Math.floor(subRoi.y2_ratio * vidH);
+    return { x1, y1, x2, y2, w: x2 - x1, h: y2 - y1 };
+  };
+
+  const t1 = parseROI(roi.t1);
+  const t2 = parseROI(roi.t2);
+  const icons = parseROI(roi.icons);
+
+  if (t1.w <= 0 || t1.h <= 0 || t2.w <= 0 || t2.h <= 0 || icons.w <= 0 || icons.h <= 0) {
     return { error: "Invalid crop dimensions" };
   }
-  
-  const canvas = document.createElement("canvas");
-  canvas.width = cropW;
-  canvas.height = cropH;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  
-  ctx.drawImage(videoElement, vx1, vy1, cropW, cropH, 0, 0, cropW, cropH);
-  
-  // Get ImageData for FeedDetector (V0.14)
-  const imageData = ctx.getImageData(0, 0, cropW, cropH);
-  const pixels = imageData.data;
-  
-  // Convert current frame to grayscale for pixel diff
-  const len = pixels.length;
-  const currentGray = new Uint8Array(len / 4);
-  let idx = 0;
-  for (let i = 0; i < len; i += 4) {
-    currentGray[idx++] = Math.round(0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2]);
-  }
-  
-  let hasChanged = false;
-  let meanDiff = 0;
-  if (!prevFrameGray || prevFrameGray.length !== currentGray.length) {
-    hasChanged = true;
-    meanDiff = 255; // First frame always counts as changed
-  } else {
-    let sumDiff = 0;
-    const numPixels = currentGray.length;
-    for (let i = 0; i < numPixels; i++) {
-      sumDiff += Math.abs(currentGray[i] - prevFrameGray[i]);
-    }
-    meanDiff = sumDiff / numPixels;
-    if (meanDiff >= 8.0) {
-      hasChanged = true;
-    }
-  }
-  
-  prevFrameGray = currentGray;
-  
-  // Slice into 4 horizontal segments
+
+  // Row height slice offsets
+  const rowH_t1 = Math.floor(t1.h / 4);
+  const rowH_t2 = Math.floor(t2.h / 4);
+  const rowH_icons = Math.floor(icons.h / 4);
+
   const segments = [];
-  const rowH = Math.floor(cropH / 4);
   if (!window.prevSegmentsGray) {
     window.prevSegmentsGray = [null, null, null, null];
   }
-  
+
   for (let s = 0; s < 4; s++) {
-    const sy1 = s * rowH;
-    const subCanvas = document.createElement("canvas");
-    subCanvas.width = cropW;
-    subCanvas.height = rowH;
-    const subCtx = subCanvas.getContext("2d", { willReadFrequently: true });
-    subCtx.drawImage(videoElement, vx1, vy1 + sy1, cropW, rowH, 0, 0, cropW, rowH);
-    
-    const subImgData = subCtx.getImageData(0, 0, cropW, rowH);
-    const subPixels = subImgData.data;
-    
-    const subLen = subPixels.length;
-    const subGray = new Uint8Array(subLen / 4);
-    let sIdx = 0;
-    for (let i = 0; i < subLen; i += 4) {
-      subGray[sIdx++] = Math.round(0.299 * subPixels[i] + 0.587 * subPixels[i+1] + 0.114 * subPixels[i+2]);
+    // 1. Crop T1 segment
+    const t1Canvas = document.createElement("canvas");
+    t1Canvas.width = t1.w;
+    t1Canvas.height = rowH_t1;
+    const t1Ctx = t1Canvas.getContext("2d");
+    t1Ctx.drawImage(videoElement, t1.x1, t1.y1 + s * rowH_t1, t1.w, rowH_t1, 0, 0, t1.w, rowH_t1);
+    const t1DataUrl = t1Canvas.toDataURL("image/jpeg", 0.90);
+    const t1ImgData = t1Ctx.getImageData(0, 0, t1.w, rowH_t1);
+
+    // 2. Crop T2 segment
+    const t2Canvas = document.createElement("canvas");
+    t2Canvas.width = t2.w;
+    t2Canvas.height = rowH_t2;
+    const t2Ctx = t2Canvas.getContext("2d");
+    t2Ctx.drawImage(videoElement, t2.x1, t2.y1 + s * rowH_t2, t2.w, rowH_t2, 0, 0, t2.w, rowH_t2);
+    const t2DataUrl = t2Canvas.toDataURL("image/jpeg", 0.90);
+    const t2ImgData = t2Ctx.getImageData(0, 0, t2.w, rowH_t2);
+
+    // 3. Crop Icons segment
+    const iconCanvas = document.createElement("canvas");
+    iconCanvas.width = icons.w;
+    iconCanvas.height = rowH_icons;
+    const iconCtx = iconCanvas.getContext("2d");
+    iconCtx.drawImage(videoElement, icons.x1, icons.y1 + s * rowH_icons, icons.w, rowH_icons, 0, 0, icons.w, rowH_icons);
+    const iconDataUrl = iconCanvas.toDataURL("image/jpeg", 0.90);
+    const iconImgData = iconCtx.getImageData(0, 0, icons.w, rowH_icons);
+
+    // Grayscale convert for pixel diff check on Icon crop
+    const pixels = iconImgData.data;
+    const len = pixels.length;
+    const currentGray = new Uint8Array(len / 4);
+    let idx = 0;
+    for (let i = 0; i < len; i += 4) {
+      currentGray[idx++] = Math.round(0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2]);
     }
-    
-    let subChanged = false;
-    let subMeanDiff = 0;
+
+    let hasChanged = false;
+    let meanDiff = 0;
     const prevSubGray = window.prevSegmentsGray[s];
-    
-    if (!prevSubGray || prevSubGray.length !== subGray.length) {
-      subChanged = true;
-      subMeanDiff = 255;
+
+    if (!prevSubGray || prevSubGray.length !== currentGray.length) {
+      hasChanged = true;
+      meanDiff = 255;
     } else {
       let sumDiff = 0;
-      const numPixels = subGray.length;
+      const numPixels = currentGray.length;
       for (let i = 0; i < numPixels; i++) {
-        sumDiff += Math.abs(subGray[i] - prevSubGray[i]);
+        sumDiff += Math.abs(currentGray[i] - prevSubGray[i]);
       }
-      subMeanDiff = sumDiff / numPixels;
-      if (subMeanDiff >= 8.0) {
-        subChanged = true;
+      meanDiff = sumDiff / numPixels;
+      if (meanDiff >= 8.0) {
+        hasChanged = true;
       }
     }
-    
-    window.prevSegmentsGray[s] = subGray;
-    const subDataUrl = subCanvas.toDataURL("image/jpeg", 0.90);
-    
+
+    window.prevSegmentsGray[s] = currentGray;
+
     segments.push({
       rowIndex: s,
-      dataUrl: subDataUrl,
-      imageData: subImgData,
-      hasChanged: subChanged,
-      meanDiff: Math.round(subMeanDiff * 100) / 100
+      t1_dataUrl: t1DataUrl,
+      t1_imageData: t1ImgData,
+      t2_dataUrl: t2DataUrl,
+      t2_imageData: t2ImgData,
+      icon_dataUrl: iconDataUrl,
+      icon_imageData: iconImgData,
+      hasChanged: hasChanged,
+      meanDiff: Math.round(meanDiff * 100) / 100
     });
   }
-  
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.90);
-  return { dataUrl, imageData, hasChanged, meanDiff: Math.round(meanDiff * 100) / 100, segments };
+
+  // Return diagnostic preview (using icons canvas as raw frame preview)
+  const previewCanvas = document.createElement("canvas");
+  previewCanvas.width = icons.w;
+  previewCanvas.height = icons.h;
+  const prevCtx = previewCanvas.getContext("2d");
+  prevCtx.drawImage(videoElement, icons.x1, icons.y1, icons.w, icons.h, 0, 0, icons.w, icons.h);
+  const dataUrl = previewCanvas.toDataURL("image/jpeg", 0.90);
+  const imageData = prevCtx.getImageData(0, 0, icons.w, icons.h);
+
+  return { dataUrl, imageData, hasChanged: segments.some(s => s.hasChanged), meanDiff: segments[0].meanDiff, segments };
 }
 
 // Initialize Sampling Engine with references to our functions
@@ -320,6 +322,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ hasVideo: hasVideo });
   } 
   else if (message.action === "start-calibration") {
+    currentCalibrationTarget = message.target || "t1";
     startCalibration();
     sendResponse({ status: "overlay_launched" });
   } 

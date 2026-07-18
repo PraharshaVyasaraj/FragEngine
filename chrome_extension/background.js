@@ -13,14 +13,19 @@ chrome.sidePanel
 /**
  * Handle sending frame to backend server (called from content script Scheduler).
  */
-async function sendFrameToServer(base64Jpg, rowIndex) {
+async function sendFrameToServer(t1Image, t2Image, iconImage, rowIndex) {
   if (!isCapturing || isIgnoring) return;
 
   try {
     const res = await fetch("http://127.0.0.1:5000/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: base64Jpg, row_index: rowIndex })
+      body: JSON.stringify({
+        t1_image: t1Image,
+        t2_image: t2Image,
+        icon_image: iconImage,
+        row_index: rowIndex
+      })
     });
     
     if (res.ok) {
@@ -29,7 +34,7 @@ async function sendFrameToServer(base64Jpg, rowIndex) {
       if (result.status === "duplicate") {
         chrome.runtime.sendMessage({
           action: "frame-previews",
-          raw: base64Jpg,
+          raw: iconImage,
           status: "duplicate"
         }).catch(() => {});
         return;
@@ -51,7 +56,7 @@ async function sendFrameToServer(base64Jpg, rowIndex) {
         // Update previews with the parsed data
         chrome.runtime.sendMessage({
           action: "frame-previews",
-          raw: base64Jpg,
+          raw: iconImage,
           status: "logged",
           data: result.data
         }).catch(() => {});
@@ -67,7 +72,7 @@ async function sendFrameToServer(base64Jpg, rowIndex) {
     console.log("Error sending frame to server:", err);
     chrome.runtime.sendMessage({
       action: "frame-previews",
-      raw: base64Jpg,
+      raw: iconImage,
       status: "server_offline"
     }).catch(() => {});
   }
@@ -117,7 +122,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ status: "stopped" });
   } 
   else if (message.action === "send-frame") {
-    sendFrameToServer(message.dataUrl, message.rowIndex);
+    sendFrameToServer(message.t1_image, message.t2_image, message.icon_image, message.rowIndex);
     sendResponse({ status: "sending" });
   }
   else if (message.action === "get-status") {
