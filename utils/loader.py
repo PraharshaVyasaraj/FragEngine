@@ -10,9 +10,8 @@ def load_config():
             return json.load(f)
     except Exception as e:
         print(f"[ERROR] Failed to load config.json from {config_path}: {e}")
-        # Return fallback configuration
         return {
-            "version": "0.16.0",
+            "version": "0.17.0",
             "base_dir": r"C:\FragEngine",
             "icons_dir": r"C:\FragEngine\icons",
             "ql_path": r"C:\FragEngine\QL.csv",
