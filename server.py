@@ -15,7 +15,7 @@ from flask_cors import CORS
 from parser import FeedParser
 
 # Setup telemetry collector path
-base_dir = r"E:\Games Data\SAMPLE_IMAGESET_FEED"
+base_dir = r"C:\FragEngine"
 from backend.telemetry import TelemetryCollector
 
 # Initialize Telemetry
@@ -38,8 +38,8 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Paths
-base_dir = r"E:\Games Data\SAMPLE_IMAGESET_FEED"
-icons_dir = r"E:\Games Data\SF FEED ICONS"
+base_dir = r"C:\FragEngine"
+icons_dir = r"C:\FragEngine\icons"
 ql_path = os.path.join(base_dir, "QL.csv")
 
 # Initialize Parser
@@ -69,7 +69,7 @@ if os.path.exists(players_path):
     except Exception as e:
         print(f"Error loading PlayerNames CSV: {e}")
 
-print(f"[SERVER V0.12] Loaded {len(team_tags)} Team Tags and {len(player_names)} Player Names for auto-correction.")
+print(f"[SERVER V0.15] Loaded {len(team_tags)} Team Tags and {len(player_names)} Player Names for auto-correction.")
 
 # Initialize QL file
 if not os.path.exists(ql_path):
@@ -368,5 +368,5 @@ def process_frame():
 
 
 if __name__ == "__main__":
-    print("FragEngine V0.14 — Active (FragLab Analytics)")
+    print("FragEngine 0.15 — Active (FragLab Analytics)")
     app.run(host="127.0.0.1", port=5000, debug=False)
