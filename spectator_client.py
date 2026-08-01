@@ -1,6 +1,6 @@
 """
-FragEngine V0.16 — Desktop Spectator Dashboard App
-Standalone Tkinter/OpenCV GUI client for direct in-game custom room spectating.
+FragEngine V0.16 — Desktop Spectator Command Center
+Full Standalone GUI Control Hub for Direct In-Game Custom Room Spectating.
 """
 
 import os
@@ -16,7 +16,6 @@ from PIL import Image, ImageTk
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-# Add project root to sys.path
 BASE_DIR = r"C:\FragEngine"
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
@@ -91,11 +90,11 @@ class CalibrationOverlay:
             self.top.destroy()
 
 
-class SpectatorDashboardApp:
+class CommandCenterApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("FRAGLAB // DESKTOP SPECTATOR DASHBOARD (V0.16)")
-        self.root.geometry("880x680")
+        self.root.title("FRAGLAB // DESKTOP COMMAND CONTROL CENTER (V0.16)")
+        self.root.geometry("1180x760")
         self.root.configure(bg="#060709")
 
         self.capturer = DesktopCapturer()
@@ -106,7 +105,7 @@ class SpectatorDashboardApp:
         self.ingest_thread = None
 
         self.setup_ui()
-        self.poll_server_status()
+        self.poll_server_state()
 
     def setup_ui(self):
         # Header Bar
@@ -115,7 +114,7 @@ class SpectatorDashboardApp:
 
         title_lbl = tk.Label(
             hdr_frame,
-            text="((o)) FRAGLAB | SPECTATOR_DASHBOARD",
+            text="((o)) FRAGLAB | COMMAND_CONTROL_CENTER",
             font=("Consolas", 16, "bold"),
             fg="#ff2a2a",
             bg="#0d0f14"
@@ -131,61 +130,112 @@ class SpectatorDashboardApp:
         )
         self.status_lbl.pack(side=tk.RIGHT, padx=12, pady=10)
 
-        # Control Panel
-        ctrl_frame = tk.Frame(self.root, bg="#0d0f14", bd=1, relief=tk.SOLID)
-        ctrl_frame.pack(fill=tk.X, padx=14, pady=4)
+        # Main Split Frame: Left Controls & Previews | Right Live Leaderboard
+        main_split = tk.Frame(self.root, bg="#060709")
+        main_split.pack(fill=tk.BOTH, expand=True, padx=14, pady=4)
 
-        btn_style = {"font": ("Consolas", 10, "bold"), "bd": 0, "padx": 12, "pady": 6, "cursor": "hand2"}
+        # Left Column: Control Panel & Dual Canvas Previews
+        left_col = tk.Frame(main_split, bg="#060709", width=540)
+        left_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
+
+        # Control Panel Box
+        ctrl_box = tk.LabelFrame(left_col, text=" ENGINE COMMAND CONTROLS ", font=("Consolas", 10, "bold"), fg="#ff2a2a", bg="#0d0f14")
+        ctrl_box.pack(fill=tk.X, pady=(0, 8))
+
+        btn_style = {"font": ("Consolas", 9, "bold"), "bd": 0, "padx": 10, "pady": 6, "cursor": "hand2"}
+
+        btn_row1 = tk.Frame(ctrl_box, bg="#0d0f14")
+        btn_row1.pack(fill=tk.X, padx=6, pady=4)
 
         self.btn_cal_feed = tk.Button(
-            ctrl_frame, text="🎯 1. CALIBRATE KILL FEED (250%)",
+            btn_row1, text="🎯 1. CALIBRATE KILL FEED (250%)",
             bg="#1a1e28", fg="#ffffff", command=self.calibrate_kill_feed, **btn_style
         )
-        self.btn_cal_feed.pack(side=tk.LEFT, padx=8, pady=8)
+        self.btn_cal_feed.pack(side=tk.LEFT, padx=4)
 
         self.btn_cal_alive = tk.Button(
-            ctrl_frame, text="🎯 2. CALIBRATE ALIVE COUNTER",
+            btn_row1, text="🎯 2. CALIBRATE ALIVE COUNTER",
             bg="#1a1e28", fg="#ffffff", command=self.calibrate_alive_counter, **btn_style
         )
-        self.btn_cal_alive.pack(side=tk.LEFT, padx=8, pady=8)
+        self.btn_cal_alive.pack(side=tk.LEFT, padx=4)
+
+        btn_row2 = tk.Frame(ctrl_box, bg="#0d0f14")
+        btn_row2.pack(fill=tk.X, padx=6, pady=6)
 
         self.btn_start = tk.Button(
-            ctrl_frame, text="▶️ START INGEST (250MS)",
+            btn_row2, text="▶️ START INGEST (250MS)",
             bg="#ff2a2a", fg="#ffffff", command=self.start_ingest, **btn_style
         )
-        self.btn_start.pack(side=tk.LEFT, padx=8, pady=8)
+        self.btn_start.pack(side=tk.LEFT, padx=4)
 
         self.btn_stop = tk.Button(
-            ctrl_frame, text="⏹️ STOP",
+            btn_row2, text="⏹️ STOP",
             bg="#333333", fg="#888888", state=tk.DISABLED, command=self.stop_ingest, **btn_style
         )
-        self.btn_stop.pack(side=tk.LEFT, padx=8, pady=8)
+        self.btn_stop.pack(side=tk.LEFT, padx=4)
+
+        self.btn_roster = tk.Button(
+            btn_row2, text="📋 LOAD SCARFALL ROSTER",
+            bg="#d35400", fg="#ffffff", command=self.load_scarfall_roster, **btn_style
+        )
+        self.btn_roster.pack(side=tk.LEFT, padx=4)
 
         # Dual Canvas Previews
-        preview_container = tk.Frame(self.root, bg="#060709")
-        preview_container.pack(fill=tk.BOTH, expand=True, padx=14, pady=8)
+        preview_box = tk.LabelFrame(left_col, text=" LIVE INGEST FRAME PREVIEWS ", font=("Consolas", 10, "bold"), fg="#ff2a2a", bg="#0d0f14")
+        preview_box.pack(fill=tk.BOTH, expand=True)
 
-        # Canvas A: Kill Feed Crop
-        box_a = tk.LabelFrame(preview_container, text=" LIVE KILL FEED CROP (250% IN-GAME SCALE) ", font=("Consolas", 10, "bold"), fg="#ff2a2a", bg="#0d0f14")
-        box_a.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4)
+        canv_row = tk.Frame(preview_box, bg="#0d0f14")
+        canv_row.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
 
-        self.canvas_a = tk.Canvas(box_a, bg="#060709", highlightthickness=0)
-        self.canvas_a.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+        # Canvas A
+        box_a = tk.Frame(canv_row, bg="#060709")
+        box_a.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
+        tk.Label(box_a, text="KILL FEED CROP (250% SCALE)", font=("Consolas", 8, "bold"), fg="#5a6478", bg="#060709").pack()
+        self.canvas_a = tk.Canvas(box_a, bg="#000000", highlightthickness=0)
+        self.canvas_a.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        # Canvas B: Alive Counter Crop
-        box_b = tk.LabelFrame(preview_container, text=" TEAMS ALIVE COUNTER CROP ", font=("Consolas", 10, "bold"), fg="#ff2a2a", bg="#0d0f14")
-        box_b.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=4)
+        # Canvas B
+        box_b = tk.Frame(canv_row, bg="#060709")
+        box_b.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=2)
+        tk.Label(box_b, text="TEAMS ALIVE COUNTER CROP", font=("Consolas", 8, "bold"), fg="#5a6478", bg="#060709").pack()
+        self.canvas_b = tk.Canvas(box_b, bg="#000000", highlightthickness=0)
+        self.canvas_b.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        self.canvas_b = tk.Canvas(box_b, bg="#060709", highlightthickness=0)
-        self.canvas_b.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+        # Right Column: Live Leaderboard Telemetry Grid
+        right_col = tk.LabelFrame(main_split, text=" LIVE TELEMETRY LEADERBOARD ", font=("Consolas", 10, "bold"), fg="#ff2a2a", bg="#0d0f14")
+        right_col.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(8, 0))
 
-        # Stats Bar
+        # Table Treeview
+        tree_style = ttk.Style()
+        tree_style.theme_use("clamp")
+        tree_style.configure("Treeview", background="#0d0f14", foreground="#ffffff", fieldbackground="#0d0f14", rowheight=26, font=("Consolas", 9))
+        tree_style.configure("Treeview.Heading", background="#1a1e28", foreground="#ff2a2a", font=("Consolas", 9, "bold"))
+        tree_style.map("Treeview", background=[("selected", "#ff2a2a")])
+
+        cols = ("#", "TEAM", "STATUS", "FIN", "PTS")
+        self.tree = ttk.Treeview(right_col, columns=cols, show="headings", selectmode="none")
+        
+        self.tree.heading("#", text="#")
+        self.tree.heading("TEAM", text="TEAM TAG")
+        self.tree.heading("STATUS", text="PLAYER STATUS (4-BAR)")
+        self.tree.heading("FIN", text="FIN")
+        self.tree.heading("PTS", text="PTS")
+
+        self.tree.column("#", width=32, anchor="center")
+        self.tree.column("TEAM", width=90, anchor="w")
+        self.tree.column("STATUS", width=140, anchor="center")
+        self.tree.column("FIN", width=50, anchor="e")
+        self.tree.column("PTS", width=60, anchor="e")
+
+        self.tree.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+
+        # Bottom Stats Bar
         stats_frame = tk.Frame(self.root, bg="#0d0f14", bd=1, relief=tk.SOLID)
         stats_frame.pack(fill=tk.X, padx=14, pady=8)
 
         self.lbl_stats = tk.Label(
             stats_frame,
-            text="FPS: 4.0 (250ms)  |  OCR Latency: - ms  |  Frames Sampled: 0  |  Server: OK",
+            text="Rate: 250ms (4.0 FPS)  |  Ingest Latency: - ms  |  Frames Sampled: 0  |  Server: 200 OK",
             font=("Consolas", 10),
             fg="#5a6478",
             bg="#0d0f14"
@@ -234,18 +284,14 @@ class SpectatorDashboardApp:
             img_crop = self.capturer.capture_roi(self.roi_kill_feed)
             if img_crop is not None:
                 sample_count += 1
-                # Encode base64 JPEG
                 _, buffer = cv2.imencode('.jpg', img_crop, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
                 b64_str = "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
 
-                # Display frame on Canvas A
                 self.update_canvas_image(self.canvas_a, img_crop)
 
-                # Send frame to local server
                 try:
                     res = requests.post(f"{SERVER_URL}/process", json={"image": b64_str}, timeout=0.8)
                     elapsed_ms = (time.perf_counter() - t0) * 1000
-                    
                     self.root.after(0, self.update_stats, sample_count, round(elapsed_ms, 1))
                 except Exception as e:
                     print(f"[Server Error] {e}")
@@ -256,18 +302,40 @@ class SpectatorDashboardApp:
                 if img_alive is not None:
                     self.update_canvas_image(self.canvas_b, img_alive)
 
-            # Sleep to maintain fixed 250ms interval (4 FPS)
             elapsed_sec = time.perf_counter() - t0
             sleep_time = max(0.001, 0.250 - elapsed_sec)
             time.sleep(sleep_time)
 
+    def load_scarfall_roster(self):
+        roster_payload = {
+          "teams": [
+            { "tag": "PLTN",   "name": "Peloton",         "players": ["P1", "P2", "P3", "P4"] },
+            { "tag": "CPTN",   "name": "Captains",        "players": ["C1", "C2", "C3", "C4"] },
+            { "tag": "SC",     "name": "Shadow Clan",     "players": ["S1", "S2", "S3", "S4"] },
+            { "tag": "OCN",    "name": "Ocean Esports",   "players": ["O1", "O2", "O3", "O4"] },
+            { "tag": "6SENSE", "name": "Sixth Sense",     "players": ["61", "62", "63", "64"] },
+            { "tag": "STAR",   "name": "Star Alliance",   "players": ["St1", "St2", "St3", "St4"] },
+            { "tag": "RS",     "name": "Rising Stars",    "players": ["R1", "R2", "R3", "R4"] },
+            { "tag": "XBUG",   "name": "X-Bugs",          "players": ["X1", "X2", "X3", "X4"] },
+            { "tag": "KyZN",   "name": "KyZN Esports",    "players": ["EviLKiOz", "Shadow", "Viper", "Apex"] },
+            { "tag": "FLCN",   "name": "Falcon Squad",    "players": ["PRADIP", "Hawk", "Falcon1", "Blaze"] },
+            { "tag": "TxL",    "name": "TxL Clan",        "players": ["CLUSTER", "Striker", "Ghost", "Raven"] },
+            { "tag": "Tr",     "name": "Team Tr",          "players": ["CHAMP-08", "Nitro", "Venom", "Storm"] }
+          ]
+        }
+        try:
+            r = requests.post(f"{SERVER_URL}/api/roster", json=roster_payload, timeout=1.0)
+            if r.status_code == 200:
+                messagebox.showinfo("Roster Ingested", "Loaded 12 Scarfall Baseline Teams into Engine!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to connect to server: {e}")
+
     def update_canvas_image(self, canvas, cv_img):
         try:
-            # Resize image to fit canvas
             cw = canvas.winfo_width()
             ch = canvas.winfo_height()
             if cw < 10 or ch < 10:
-                cw, ch = 380, 240
+                cw, ch = 240, 160
 
             h, w = cv_img.shape[:2]
             scale = min(cw / w, ch / h)
@@ -289,18 +357,38 @@ class SpectatorDashboardApp:
             text=f"Rate: 250ms (4.0 FPS)  |  Ingest Latency: {latency_ms}ms  |  Frames Sampled: {samples}  |  Server: 200 OK"
         )
 
-    def poll_server_status(self):
+    def poll_server_state(self):
         try:
             r = requests.get(f"{SERVER_URL}/api/telemetry_state", timeout=0.5)
             if r.status_code == 200:
-                pass
+                data = r.json()
+                if data.get("status") == "success":
+                    self.render_leaderboard_tree(data.get("leaderboard", []))
         except Exception:
-            self.lbl_stats.config(text="⚠️ SERVER DISCONNECTED (Start server.py on port 5000)")
+            pass
         
-        self.root.after(3000, self.poll_server_status)
+        self.root.after(1000, self.poll_server_state)
+
+    def render_leaderboard_tree(self, leaderboard):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for item in leaderboard:
+            rank_str = f"#{item['current_rank']}"
+            tag = item["team_tag"]
+            
+            bars = ""
+            for p in item["player_states"]:
+                if p == "ALIVE": bars += "🟩"
+                elif p == "KNOCKED": bars += "🟥"
+                else: bars += "⬜"
+
+            fin = item["finishes"]
+            pts = item["total_points"]
+            self.tree.insert("", tk.END, values=(rank_str, tag, bars, fin, pts))
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = SpectatorDashboardApp(root)
+    app = CommandCenterApp(root)
     root.mainloop()
