@@ -6,7 +6,7 @@ import psutil
 import datetime
 
 class TelemetryCollector:
-    def __init__(self, base_dir=r"E:\Games Data\SAMPLE_IMAGESET_FEED"):
+    def __init__(self, base_dir=r"C:\FragEngine"):
         self.base_dir = base_dir
         self.session_dir = self._create_session_directory()
         
