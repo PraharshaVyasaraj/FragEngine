@@ -69,8 +69,14 @@ const SamplingEngine = (() => {
       stats.framesWithIcon++;
     }
 
-    // Always evaluate frame to transmission scheduler at 250ms rate
-    TransmissionScheduler.evaluate(frame);
+    // Safely evaluate frame to transmission scheduler at 250ms rate
+    if (typeof TransmissionScheduler !== 'undefined') {
+      if (typeof TransmissionScheduler.evaluate === 'function') {
+        TransmissionScheduler.evaluate(frame);
+      } else if (typeof TransmissionScheduler.enqueue === 'function') {
+        TransmissionScheduler.enqueue(frame);
+      }
+    }
 
     // Broadcast frame preview to side panel / popup
     chrome.runtime.sendMessage({
