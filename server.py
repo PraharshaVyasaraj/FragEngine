@@ -14,6 +14,10 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from parser import FeedParser
 
+# Import V0.16 Decoupled Telemetry Engines
+from utils.state_engine import StateEngine
+from utils.scoring_engine import ScoringEngine
+
 # Setup telemetry collector path
 base_dir = r"C:\FragEngine"
 from backend.telemetry import TelemetryCollector
@@ -42,8 +46,11 @@ base_dir = r"C:\FragEngine"
 icons_dir = r"C:\FragEngine\icons"
 ql_path = os.path.join(base_dir, "QL.csv")
 
-# Initialize Parser
+# Initialize Parser & V0.16 Match Engines
 parser = FeedParser(icons_dir)
+state_engine = StateEngine(knock_timeout_seconds=30.0)
+ruleset_default_path = os.path.join(base_dir, "config", "rulesets", "bmps.json")
+scoring_engine = ScoringEngine(state_engine, ruleset_path=ruleset_default_path)
 
 # Load Dictionaries for Soft Auto-Correction
 team_tags = []
@@ -339,7 +346,7 @@ def process_frame():
                 return jsonify({"status": "duplicate", "reason": duplicate_reason})
 
             # ─────────────────────────────────────────────────────────
-            # APPROVED -> Update State, Write to CSV
+            # APPROVED -> Update State, Write to CSV & Feed StateEngine
             # ─────────────────────────────────────────────────────────
             last_log_time = current_time
             last_log_entry = candidate_entry
@@ -347,6 +354,21 @@ def process_frame():
 
             with open(ql_path, "a", encoding="utf-8") as f:
                 f.write(log_line)
+
+            # Feed V0.16 Decoupled State Engine
+            action_state = "FINISH"
+            if res.get("i2") == "KNOCK":
+                action_state = "KNOCK"
+            elif res.get("i1") in ["ZONE", "FALL", "DROWN"]:
+                action_state = f"{res.get('i1')}_FINISH"
+
+            state_engine.process_event({
+                "layout": res.get("layout"),
+                "t1": res.get("t1"),
+                "t2": res.get("t2"),
+                "action": action_state,
+                "timestamp": current_time
+            })
 
             total_ms = (time.perf_counter() - t_start) * 1000
             telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="logged")
@@ -367,6 +389,62 @@ def process_frame():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# ─────────────────────────────────────────────────────────
+# V0.16 MATCH INTELLIGENCE API ENDPOINTS
+# ─────────────────────────────────────────────────────────
+
+@app.route("/api/roster", methods=["POST"])
+def load_match_roster():
+    """Upload pre-match 16-team roster data."""
+    try:
+        data = request.json
+        if not data or "teams" not in data:
+            return jsonify({"status": "error", "message": "Missing 'teams' array in roster payload"}), 400
+
+        teams_payload = data["teams"]
+        state_engine.load_roster(teams_payload)
+        scoring_engine.recalculate_all()
+        return jsonify({"status": "success", "message": f"Loaded roster with {len(teams_payload)} teams."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/ruleset", methods=["POST"])
+def select_scoring_ruleset():
+    """Select active tournament scoring ruleset."""
+    try:
+        data = request.json
+        if not data or "ruleset" not in data:
+            return jsonify({"status": "error", "message": "Missing 'ruleset' name parameter"}), 400
+
+        ruleset_name = data["ruleset"].lower().replace(".json", "")
+        target_file = os.path.join(base_dir, "config", "rulesets", f"{ruleset_name}.json")
+
+        if not os.path.exists(target_file):
+            return jsonify({"status": "error", "message": f"Ruleset '{ruleset_name}' not found"}), 404
+
+        scoring_engine.load_ruleset(target_file)
+        return jsonify({"status": "success", "ruleset": scoring_engine.ruleset_name})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/telemetry_state", methods=["GET"])
+def get_telemetry_state():
+    """Returns live telemetry snapshot and real-time sorted leaderboard for HUD dashboard."""
+    try:
+        leaderboard = scoring_engine.get_leaderboard()
+        snapshot = state_engine.get_snapshot()
+        return jsonify({
+            "status": "success",
+            "active_ruleset": scoring_engine.ruleset_name,
+            "teams_alive": snapshot["teams_alive"],
+            "leaderboard": leaderboard
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 if __name__ == "__main__":
-    print("FragEngine 0.15 — Active (FragLab Analytics)")
+    print("FragEngine 0.16.0 — Active (Decoupled Telemetry Architecture)")
     app.run(host="127.0.0.1", port=5000, debug=False)
