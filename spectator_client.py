@@ -180,6 +180,12 @@ class CommandCenterApp:
         )
         self.btn_roster.pack(side=tk.LEFT, padx=4)
 
+        self.btn_overlay = tk.Button(
+            btn_row2, text="📺 IN-GAME OVERLAY HUD",
+            bg="#008080", fg="#ffffff", command=self.launch_in_game_overlay, **btn_style
+        )
+        self.btn_overlay.pack(side=tk.LEFT, padx=4)
+
         # Dual Canvas Previews
         preview_box = tk.LabelFrame(left_col, text=" LIVE INGEST FRAME PREVIEWS ", font=("Consolas", 10, "bold"), fg="#ff2a2a", bg="#0d0f14")
         preview_box.pack(fill=tk.BOTH, expand=True)
@@ -274,6 +280,12 @@ class CommandCenterApp:
         self.btn_start.config(state=tk.NORMAL, bg="#ff2a2a")
         self.btn_stop.config(state=tk.DISABLED, bg="#333333", fg="#888888")
         self.status_lbl.config(text="● INGEST PAUSED", fg="#7a8599")
+
+    def launch_in_game_overlay(self):
+        import subprocess
+        python_exe = sys.executable
+        overlay_script = os.path.join(BASE_DIR, "utils", "overlay_hud.py")
+        subprocess.Popen([python_exe, overlay_script])
 
     def ingest_loop(self):
         sample_count = 0
