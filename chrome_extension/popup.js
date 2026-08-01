@@ -239,15 +239,21 @@ function formatDuration(sec) {
 }
 
 function updateDiagnosticsUI(diag) {
-  // Mode & Temporal
-  lblSamplingMode.innerText = diag.engine.mode || "-";
-  lblSamplingMode.className = diag.engine.mode === "RAPID" ? "diag-val alert" : "diag-val highlight";
-  lblDuration.innerText = formatDuration(diag.engine.sessionDurationSec);
+  if (!diag || !diag.engine) return;
+
+  // Mode & Duration
+  lblSamplingMode.innerText = diag.engine.mode || "STANDARD_250MS";
+  lblSamplingMode.className = "diag-val highlight";
+  
+  const sec = diag.engine.sessionDurationMs ? Math.floor(diag.engine.sessionDurationMs / 1000) : 0;
+  lblDuration.innerText = formatDuration(sec);
   
   // Pipeline counters
   lblFramesSampled.innerText = diag.engine.framesSampled || "0";
-  lblFramesSent.innerText = diag.scheduler.framesSent || "0";
-  lblFramesRejected.innerText = diag.scheduler.framesRejected || "0";
+  if (diag.scheduler) {
+    lblFramesSent.innerText = diag.scheduler.framesSent || "0";
+    lblFramesRejected.innerText = diag.scheduler.framesRejected || "0";
+  }
   
   // Pixel analysis
   lblPixelDiff.innerText = diag.pixelDiff !== undefined ? `${diag.pixelDiff} px` : "-";
@@ -258,35 +264,12 @@ function updateDiagnosticsUI(diag) {
   lblBrightness.innerText = detector.avgBrightness !== undefined ? `${detector.avgBrightness}` : "-";
   
   // Decision Engine
-  lblFeedPresent.innerText = detector.feedPresent ? "YES" : "NO";
-  lblFeedPresent.className = detector.feedPresent ? "diag-val alert" : "diag-val";
+  lblNextSend.innerText = "250ms";
+  lblNextSend.className = "diag-val highlight";
+  lblCooldown.innerText = "STANDBY";
+  lblCooldown.className = "diag-val neutral";
   
-  lblRapidActive.innerText = diag.engine.mode === "RAPID" ? "YES" : "NO";
-  lblRapidActive.className = diag.engine.mode === "RAPID" ? "diag-val alert" : "diag-val";
-  
-  if (!detector.feedPresent) {
-    lblNextSend.innerText = "SUSPENDED";
-    lblNextSend.className = "diag-val neutral";
-  } else {
-    lblNextSend.innerText = diag.scheduler.nextSendIn !== undefined ? `${diag.scheduler.nextSendIn}ms` : "-";
-    lblNextSend.className = "diag-val alert";
-  }
-  lblCooldown.innerText = diag.engine.cooldownActive ? "ACTIVE" : "INACTIVE";
-  lblCooldown.className = diag.engine.cooldownActive ? "diag-val alert" : "diag-val neutral";
-  
-  // Decide reason text
-  if (diag.engine.mode === "NORMAL") {
-    lblReason.innerText = "MONITORING IDLE FEED";
-  } else if (diag.engine.mode === "REST") {
-    lblReason.innerText = "REST MODE (ZERO CPU PREVIEW)";
-  } else if (diag.engine.mode === "RAPID") {
-    if (detector.feedPresent) {
-      const region = detector.detectedRegion ? detector.detectedRegion.toUpperCase() : "UNKNOWN";
-      lblReason.innerText = `ACTIVE FEED IN ${region}`;
-    } else {
-      lblReason.innerText = "COOLDOWN PENDING EXIT";
-    }
-  }
+  lblReason.innerText = detector.feedPresent ? "KILL FEED DETECTED" : "INGESTING AT 250MS FIXED RATE";
 }
 
 // Render previews (Canvas Raw and Canvas Bin)
