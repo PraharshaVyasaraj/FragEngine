@@ -355,20 +355,23 @@ def process_frame():
             with open(ql_path, "a", encoding="utf-8") as f:
                 f.write(log_line)
 
-            # Feed V0.16 Decoupled State Engine
-            action_state = "FINISH"
-            if res.get("i2") == "KNOCK":
-                action_state = "KNOCK"
-            elif res.get("i1") in ["ZONE", "FALL", "DROWN"]:
-                action_state = f"{res.get('i1')}_FINISH"
+            # Feed V0.16 Decoupled State Engine (Safely wrapped so V0.16 features remain 100% optional)
+            try:
+                action_state = "FINISH"
+                if res.get("i2") == "KNOCK":
+                    action_state = "KNOCK"
+                elif res.get("i1") in ["ZONE", "FALL", "DROWN"]:
+                    action_state = f"{res.get('i1')}_FINISH"
 
-            state_engine.process_event({
-                "layout": res.get("layout"),
-                "t1": res.get("t1"),
-                "t2": res.get("t2"),
-                "action": action_state,
-                "timestamp": current_time
-            })
+                state_engine.process_event({
+                    "layout": res.get("layout"),
+                    "t1": res.get("t1"),
+                    "t2": res.get("t2"),
+                    "action": action_state,
+                    "timestamp": current_time
+                })
+            except Exception as se_err:
+                print(f"[V0.16 STATE ENGINE OPTIONAL NOTICE] Non-fatal state event warning: {se_err}")
 
             total_ms = (time.perf_counter() - t_start) * 1000
             telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=False, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="logged")
