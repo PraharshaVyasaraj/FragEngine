@@ -7,7 +7,7 @@ let localLogs = [];
 const statusDot = document.getElementById("statusDot");
 const statusLabel = document.getElementById("statusLabel");
 const btnCalibrate = document.getElementById("btnCalibrate");
-const btnExport = document.getElementById("btnExport");
+const btnDashboard = document.getElementById("btnDashboard");
 const btnStart = document.getElementById("btnStart");
 const btnStop = document.getElementById("btnStop");
 
@@ -123,6 +123,13 @@ btnCalibrate.addEventListener("click", () => {
     lblReason.innerText = "DRAWING ROI OVER KILL FEED...";
   });
 });
+
+// Launch Live Telemetry HUD Dashboard
+if (btnDashboard) {
+  btnDashboard.addEventListener("click", () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
+  });
+}
 
 // Start Ingest
 btnStart.addEventListener("click", () => {
