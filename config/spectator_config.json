@@ -1,0 +1,6 @@
+{
+  "sampling_interval_ms": 250,
+  "roi_kill_feed": null,
+  "roi_alive_counter": null,
+  "last_ruleset": "bmps"
+}
