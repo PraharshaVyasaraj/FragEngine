@@ -1,8 +1,12 @@
-# FragEngine (V0.14.3)
+# FragEngine (V0.15)
 
 [![FragEngine CI](https://github.com/PraharshaVyasaraj/FragEngine/actions/workflows/tests.yml/badge.svg)](https://github.com/PraharshaVyasaraj/FragEngine/actions/workflows/tests.yml)
 
-A high-performance, real-time telemetry extraction engine for streaming gameplay video feeds, developed as a subset of the **FragLab Analytics** suite. Built as a hybrid system with a lightweight Google Chrome Side Panel frontend and a local PyTorch Flask backend, this engine extracts, normalizes, and filters BGMI/PUBG Mobile kill feed events with sub-33ms event detection latency.
+> [!NOTE]  
+> **Active Baseline: V0.15**  
+> *Note on V0.16 – V0.17 Experiments:* Development was explored through **V0.17.0** (testing a 3-ROI split crop pipeline and active canvas overlays). Live trial analysis showed layout ROI selection alignment overhead. A deliberate decision was made to **roll back to V0.15** as the canonical single-ROI baseline before proceeding with the dedicated YOLOv8 icon classification pipeline.
+
+A high-performance, real-time telemetry extraction engine for streaming gameplay video feeds, developed as a subset of the **FragLab Analytics** suite. Built as a hybrid system with a lightweight Google Chrome Side Panel frontend and a local PaddleOCR Flask backend, this engine extracts, normalizes, and filters BGMI/PUBG Mobile kill feed events with sub-120ms event detection latency.
 
 ---
 
