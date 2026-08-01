@@ -69,8 +69,8 @@ const SamplingEngine = (() => {
       stats.framesWithIcon++;
     }
 
-    // Always enqueue frame to transmission scheduler at 250ms rate
-    TransmissionScheduler.enqueue(frame);
+    // Always evaluate frame to transmission scheduler at 250ms rate
+    TransmissionScheduler.evaluate(frame);
 
     // Broadcast frame preview to side panel / popup
     chrome.runtime.sendMessage({

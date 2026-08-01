@@ -151,5 +151,5 @@ const TransmissionScheduler = (() => {
     };
   }
 
-  return { evaluate, reset, getDiagnostics };
+  return { evaluate, enqueue: evaluate, reset, getDiagnostics };
 })();
