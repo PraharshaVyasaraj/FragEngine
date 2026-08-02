@@ -1,0 +1,182 @@
+/* FragEngine V0.16.2 — Full Dedicated Studio Command Center CSS */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Outfit:wght@400;600;700;800&display=swap');
+
+:root {
+  --fr-red-primary: #ff2a2a;
+  --fr-red-glow: rgba(255, 42, 42, 0.4);
+  --fr-bg-dark: #07080a;
+  --fr-card-bg: rgba(15, 18, 24, 0.85);
+  --fr-card-border: rgba(255, 42, 42, 0.2);
+  --fr-text-white: #ffffff;
+  --fr-text-muted: #64748b;
+  --fr-success-green: #39ff14;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background-color: var(--fr-bg-dark);
+  color: var(--fr-text-white);
+  font-family: 'JetBrains Mono', monospace;
+  min-height: 100vh;
+  padding: 24px;
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(255, 42, 42, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 90% 90%, rgba(255, 42, 42, 0.04) 0%, transparent 40%);
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header Banner */
+.studio-header {
+  grid-column: span 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--fr-card-bg);
+  border: 1px solid var(--fr-card-border);
+  border-top: 3px solid var(--fr-red-primary);
+  border-radius: 8px;
+  padding: 16px 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+}
+
+.studio-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.live-dot-ring {
+  width: 12px; height: 12px;
+  background: var(--fr-red-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--fr-red-primary);
+  animation: pulse-ring 1.2s infinite alternate;
+}
+
+@keyframes pulse-ring { from { opacity: 0.4; } to { opacity: 1; } }
+
+.studio-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
+.studio-title span { color: var(--fr-red-primary); }
+
+.hdr-status {
+  font-size: 11px;
+  color: var(--fr-text-muted);
+  letter-spacing: 1px;
+}
+
+/* Panel Card */
+.studio-card {
+  background: var(--fr-card-bg);
+  border: 1px solid var(--fr-card-border);
+  border-radius: 8px;
+  padding: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--fr-red-primary);
+  letter-spacing: 1.2px;
+  border-bottom: 1px solid rgba(255, 42, 42, 0.2);
+  padding-bottom: 8px;
+}
+
+/* Table HUD */
+.table-box {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+  border: 1px solid var(--fr-card-border);
+}
+
+table.studio-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+table.studio-table th {
+  background: rgba(255, 42, 42, 0.1);
+  color: var(--fr-red-primary);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 42, 42, 0.2);
+}
+
+table.studio-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+
+table.studio-table tr:hover {
+  background: rgba(255, 42, 42, 0.04);
+}
+
+/* Status Pills */
+.pill-flex { display: flex; gap: 4px; justify-content: center; align-items: center; }
+.pill-bar {
+  width: 10px; height: 14px; border-radius: 2px;
+}
+.pill-alive { background: #39ff14; box-shadow: 0 0 6px rgba(57,255,20,0.4); }
+.pill-knocked { background: #ff2a2a; box-shadow: 0 0 10px #ff2a2a; animation: pulse-ring 0.8s infinite alternate; }
+.pill-eliminated { background: #2a2e39; opacity: 0.3; }
+
+/* Control Buttons */
+.studio-btn {
+  background: rgba(255, 42, 42, 0.1);
+  border: 1px solid rgba(255, 42, 42, 0.3);
+  color: var(--fr-text-white);
+  padding: 10px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.8px;
+  transition: all 0.2s ease;
+}
+
+.studio-btn:hover {
+  background: var(--fr-red-primary);
+  border-color: var(--fr-red-primary);
+  box-shadow: 0 0 12px rgba(255, 42, 42, 0.4);
+}
+
+/* Stats Row */
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+}
+
+.stat-item .val { font-weight: 800; color: #fff; }
+.stat-item .val.red { color: var(--fr-red-primary); }
+.stat-item .val.green { color: var(--fr-success-green); }

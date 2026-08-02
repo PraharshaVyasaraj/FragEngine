@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "FragEngine Telemetry Link",
   "version": "0.16.2",
-  "description": "Real-time telemetry extraction, Cyber-Red HUD overlay, and Smart Roundabout App Dock for FragLab Analytics.",
+  "description": "Real-time telemetry extraction, Cyber-Red HUD overlay, and Broadcast Studio Command Center for FragLab Analytics.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -29,6 +29,12 @@
         "content.js"
       ],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["studio.html", "dashboard.html"],
+      "matches": ["<all_urls>"]
     }
   ],
   "action": {},

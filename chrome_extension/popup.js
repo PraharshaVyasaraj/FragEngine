@@ -147,10 +147,10 @@ btnCalibrate.addEventListener("click", () => {
   });
 });
 
-// Launch Live Telemetry HUD Dashboard
+// Launch Broadcast Studio Command Center Tab
 if (btnDashboard) {
   btnDashboard.addEventListener("click", () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
+    chrome.tabs.create({ url: chrome.runtime.getURL("studio.html") });
   });
 }
 

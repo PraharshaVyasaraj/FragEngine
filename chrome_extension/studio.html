@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FRAGLAB // BROADCAST STUDIO COMMAND CENTER</title>
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+
+  <div class="studio-grid">
+    
+    <!-- Studio Header -->
+    <header class="studio-header">
+      <div class="studio-title-group">
+        <div class="live-dot-ring"></div>
+        <div>
+          <div class="studio-title">FRAGLAB <span>//</span> BROADCAST STUDIO</div>
+          <div class="hdr-status">COMMAND CENTER // ENGINE V0.16.2 // OPENVINO iGPU</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button id="btnDownloadReport" class="studio-btn" style="background: var(--fr-red-primary);">📥 EXPORT MATCH JSON</button>
+      </div>
+    </header>
+
+    <!-- Main Section: Live Tournament Standings -->
+    <div class="studio-card">
+      <div class="card-hdr">
+        <span>🏆 LIVE TOURNAMENT STANDINGS</span>
+        <span id="lblActiveRuleset" style="color: var(--fr-text-muted); font-size: 10px;">RULESET: BMPS</span>
+      </div>
+      <div class="table-box">
+        <table class="studio-table">
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">#</th>
+              <th>TEAM TAG</th>
+              <th style="text-align: center;">SQUAD STATUS (4-BAR)</th>
+              <th style="text-align: right;">FINISHES</th>
+              <th style="text-align: right;">PLACEMENT PTS</th>
+              <th style="text-align: right;">TOTAL PTS</th>
+            </tr>
+          </thead>
+          <tbody id="studioLeaderboardBody">
+            <tr>
+              <td colspan="6" style="text-align: center; padding: 24px; color: var(--fr-text-muted);">
+                STANDBY // WAITING FOR TELEMETRY STREAM...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right Column: Control & Telemetry Panels -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- Tournament Roster Control -->
+      <div class="studio-card">
+        <div class="card-hdr">
+          <span>⚙️ TOURNAMENT CONTROLS</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="btnLoadRoster" class="studio-btn">📥 LOAD SCARFALL 12-TEAM ROSTER</button>
+          <button id="btnSwitchRulesetBMPS" class="studio-btn">⚡ SET RULESET: BMPS MATRIX</button>
+          <button id="btnSwitchRulesetHardcore" class="studio-btn">🔥 SET RULESET: HARDCORE MATRIX</button>
+        </div>
+      </div>
+
+      <!-- Engine Hardware & SLA Telemetry -->
+      <div class="studio-card">
+        <div class="card-hdr">
+          <span>⏱️ HARDWARE & SLA TELEMETRY</span>
+        </div>
+        <div class="stat-item">
+          <span style="color: var(--fr-text-muted);">Target Model:</span>
+          <span class="val green">PaddleOCR PP-OCRv4</span>
+        </div>
+        <div class="stat-item">
+          <span style="color: var(--fr-text-muted);">Inference Acceleration:</span>
+          <span class="val red">Intel UHD iGPU (OpenVINO)</span>
+        </div>
+        <div class="stat-item">
+          <span style="color: var(--fr-text-muted);">Pipeline SLA ($P_{50}$):</span>
+          <span class="val green">~11.8 ms</span>
+        </div>
+        <div class="stat-item">
+          <span style="color: var(--fr-text-muted);">Deduplication Wall:</span>
+          <span class="val green">400ms Delta Lock</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="studio.js"></script>
+</body>
+</html>
