@@ -1,18 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Ubuntu+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+
+/* FragEngine // Esparda Elites — Cyber-Red Brand Kit Styling */
+:root {
+  --color-primary-red: #ff2a2a;
+  --color-crimson-flame: #d30000;
+  --color-dark-obsidian: #0c0d10;
+  --color-panel-charcoal: #161920;
+  --color-text-white: #ffffff;
+  --color-text-dim: #7a8599;
+  --color-grid-red: rgba(255, 42, 42, 0.08);
+  --color-border-glow: rgba(255, 42, 42, 0.35);
+}
 
 body {
   margin: 0;
-  padding: 10px;
-  background-color: #0b0d10; /* Deep Carbon Black */
-  color: #e2e8f0; /* Brushed Silver */
-  font-family: 'Ubuntu Mono', monospace;
-  font-size: 13px;
+  padding: 12px;
+  background-color: var(--color-dark-obsidian);
+  color: var(--color-text-white);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
   user-select: none;
+  background-image: 
+    radial-gradient(circle at 15% 15%, var(--color-grid-red) 0%, transparent 50%),
+    radial-gradient(circle at 85% 85%, rgba(255, 42, 42, 0.04) 0%, transparent 50%);
 }
 
 /* Header Banner */
 .banner {
-  border-bottom: 2px solid #232a35;
+  border-bottom: 2px solid rgba(255, 42, 42, 0.3);
   padding-bottom: 8px;
   margin-bottom: 12px;
   display: flex;
@@ -20,11 +35,12 @@ body {
   align-items: center;
 }
 .banner-title {
-  font-family: 'Roboto Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 14px;
-  font-weight: bold;
-  color: #bfa15f; /* Gold accent */
+  font-weight: 800;
+  color: var(--color-primary-red);
   letter-spacing: 1.5px;
+  text-shadow: 0 0 8px rgba(255, 42, 42, 0.4);
 }
 
 /* Status Badge */
@@ -36,23 +52,23 @@ body {
 .status-dot {
   width: 8px;
   height: 8px;
-  background-color: #7f8c8d;
+  background-color: var(--color-text-dim);
   border-radius: 50%;
   transition: all 0.3s ease;
 }
 .status-dot.active {
-  background-color: #00e676; /* Green */
-  box-shadow: 0 0 10px #00e676;
-  animation: pulse 1.5s infinite;
+  background-color: var(--color-primary-red);
+  box-shadow: 0 0 10px var(--color-primary-red);
+  animation: pulse 1.2s infinite alternate;
 }
 .status-dot.rapid {
-  background-color: #d35400; /* Rapid copper alert */
-  box-shadow: 0 0 10px #d35400;
-  animation: pulse 0.6s infinite;
+  background-color: #ff0033;
+  box-shadow: 0 0 12px #ff0033;
+  animation: pulse 0.6s infinite alternate;
 }
 .status-dot.rest {
-  background-color: #00bcd4; /* Rest Mode cyan */
-  box-shadow: 0 0 10px #00bcd4;
+  background-color: #00f2fe;
+  box-shadow: 0 0 10px #00f2fe;
   animation: pulse 2.5s infinite;
 }
 .status-dot.error {
@@ -62,36 +78,36 @@ body {
 
 @keyframes pulse {
   0% { opacity: 0.4; }
-  50% { opacity: 1; }
-  100% { opacity: 0.4; }
+  100% { opacity: 1; }
 }
 
-/* Grid Layouts and Cards with Glassmorphism Overhaul */
+/* Cyber-Red Panels */
 .panel {
-  background: rgba(18, 22, 31, 0.75); /* Translucent Slate */
-  border: 1px solid rgba(191, 161, 95, 0.18); /* Fine copper/gold border */
+  background: var(--color-panel-charcoal);
+  border: 1px solid rgba(255, 42, 42, 0.2);
+  border-top: 2px solid var(--color-primary-red);
   border-radius: 6px;
   padding: 10px;
   margin-bottom: 10px;
-  backdrop-filter: blur(8px); /* Glassmorphic blur */
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .panel:hover {
-  border-color: rgba(211, 84, 0, 0.4); /* Highlight border on hover */
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  border-color: var(--color-primary-red);
+  box-shadow: 0 0 14px rgba(255, 42, 42, 0.25);
 }
 .panel-header {
   font-size: 11px;
-  font-weight: bold;
+  font-weight: 800;
   text-transform: uppercase;
-  color: #bfa15f;
+  color: var(--color-primary-red);
   margin-bottom: 8px;
-  border-left: 3px solid #d35400;
+  border-left: 3px solid var(--color-crimson-flame);
   padding-left: 6px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  letter-spacing: 1px;
 }
 
 /* Controls Grid */
@@ -101,22 +117,23 @@ body {
   gap: 6px;
 }
 button {
-  background-color: #1a202c;
-  color: #e2e8f0;
-  border: 1px solid #2d3748;
-  border-radius: 3px;
+  background-color: rgba(255, 42, 42, 0.08);
+  color: var(--color-text-white);
+  border: 1px solid rgba(255, 42, 42, 0.3);
+  border-radius: 4px;
   padding: 6px 4px;
-  font-family: 'Ubuntu Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  font-weight: bold;
+  font-weight: 700;
   cursor: pointer;
   text-transform: uppercase;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 button:hover:not(:disabled) {
-  background-color: #2d3748;
-  border-color: #d35400;
+  background-color: var(--color-primary-red);
+  border-color: var(--color-primary-red);
   color: #fff;
+  box-shadow: 0 0 10px rgba(255, 42, 42, 0.4);
 }
 button:disabled {
   opacity: 0.3;
@@ -124,23 +141,25 @@ button:disabled {
 }
 .btn-action {
   grid-column: span 3;
-  background-color: #d35400;
-  color: #e2e8f0;
-  border: 1px solid #d35400;
+  background-color: var(--color-primary-red);
+  color: #ffffff;
+  border: 1px solid var(--color-primary-red);
   padding: 8px 10px;
   font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 0 12px rgba(255, 42, 42, 0.4);
 }
 .btn-action:hover:not(:disabled) {
-  background-color: #e67e22;
-  border-color: #e67e22;
+  background-color: #ff4d4d;
+  border-color: #ff4d4d;
 }
 .btn-action.btn-stop {
-  background-color: #c0392b;
-  border-color: #c0392b;
+  background-color: #b30000;
+  border-color: #b30000;
 }
 .btn-action.btn-stop:hover {
-  background-color: #e74c3c;
-  border-color: #e74c3c;
+  background-color: #d30000;
+  border-color: #d30000;
 }
 
 /* Diagnostics Rows */
@@ -148,26 +167,26 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   padding: 4px 0;
-  border-bottom: 1px solid #1a202c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 .diag-label {
-  color: #718096;
+  color: var(--color-text-dim);
 }
 .diag-val {
-  color: #e2e8f0;
-  font-weight: bold;
+  color: var(--color-text-white);
+  font-weight: 700;
 }
 .diag-val.highlight {
-  color: #bfa15f;
+  color: var(--color-primary-red);
 }
 .diag-val.success {
-  color: #00e676;
+  color: #39ff14;
 }
 .diag-val.alert {
-  color: #d35400;
+  color: #ff2a2a;
 }
 .diag-val.neutral {
-  color: #4a5568;
+  color: var(--color-text-dim);
 }
 
 /* Previews Box */
@@ -178,9 +197,9 @@ button:disabled {
 .preview-box {
   flex: 1;
   height: 40px;
-  background-color: #05070a;
-  border: 1px solid #2d3748;
-  border-radius: 3px;
+  background-color: #060709;
+  border: 1px solid rgba(255, 42, 42, 0.25);
+  border-radius: 4px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -197,17 +216,17 @@ button:disabled {
   bottom: 2px;
   right: 4px;
   font-size: 8px;
-  color: #4a5568;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 0 2px;
+  color: var(--color-text-dim);
+  background: rgba(0, 0, 0, 0.8);
+  padding: 0 4px;
 }
 
 /* Table View for Logs */
 .table-container {
   max-height: 120px;
   overflow-y: auto;
-  border: 1px solid #2d3748;
-  border-radius: 3px;
+  border: 1px solid rgba(255, 42, 42, 0.2);
+  border-radius: 4px;
 }
 table {
   width: 100%;
@@ -215,28 +234,29 @@ table {
   text-align: left;
 }
 th {
-  background-color: #0f121a;
-  color: #bfa15f;
+  background-color: rgba(255, 42, 42, 0.12);
+  color: var(--color-primary-red);
   font-size: 10px;
+  font-weight: 800;
   text-transform: uppercase;
-  padding: 4px 6px;
-  border-bottom: 1px solid #2d3748;
+  padding: 5px 6px;
+  border-bottom: 1px solid rgba(255, 42, 42, 0.25);
   position: sticky;
   top: 0;
 }
 td {
   padding: 4px 6px;
   font-size: 11px;
-  border-bottom: 1px solid #1a202c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 tr:nth-child(even) {
-  background-color: #12161f;
+  background-color: rgba(255, 255, 255, 0.02);
 }
 tr.new-log {
-  animation: flash-green 1s ease-out;
+  animation: flash-red 1s ease-out;
 }
 
-@keyframes flash-green {
-  0% { background-color: #1e3d22; }
+@keyframes flash-red {
+  0% { background-color: rgba(255, 42, 42, 0.3); }
   100% { background-color: transparent; }
 }
