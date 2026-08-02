@@ -1,3 +1,7 @@
+/**
+ * FragEngine V0.16.1 — Background Service Worker
+ * Handles frame relay to server, tab state tracking, and keyboard shortcut commands.
+ */
 let isCapturing = false;
 let roiCoords = null;
 let activeTabId = null;
@@ -129,4 +133,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
   }
   return true;
+});
+
+// Keyboard Shortcut Command Handlers
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "toggle-ingest") {
+    if (isCapturing) {
+      stopCapture();
+      chrome.runtime.sendMessage({ action: "ingest-toggled", state: "stopped" }).catch(() => {});
+    } else if (roiCoords && activeTabId) {
+      startCapture(activeTabId, roiCoords);
+      chrome.runtime.sendMessage({ action: "ingest-toggled", state: "started" }).catch(() => {});
+    }
+  }
+  else if (command === "toggle-overlay") {
+    // Find active tab and send toggle message to overlay_injector.js
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: "toggle-overlay" }).catch(() => {});
+      }
+    });
+  }
 });

@@ -1,11 +1,10 @@
 /**
- * FragEngine V0.14 — Content Script
- * 
- * V0.14 Architecture Change:
- * - Removed fixed 30FPS capture loop
- * - grabFrame() now returns ImageData alongside dataUrl for feed detection
- * - SamplingEngine controls when frames are captured
- * - Calibration overlay with auto-lock on mouseup
+ * FragEngine V0.16.1 — Content Script
+ *
+ * V0.16.1 Changes:
+ * - ROI auto-loaded from chrome.storage.local on page load
+ * - toggle-overlay message handler for Alt+Shift+V keyboard shortcut
+ * - scale profile read from storage and passed to server on each send-frame
  */
 
 let videoElement = null;
@@ -254,6 +253,13 @@ function grabFrame(roi) {
   return { dataUrl, imageData, hasChanged, meanDiff: Math.round(meanDiff * 100) / 100 };
 }
 
+// Auto-restore ROI from persistent storage on page load
+chrome.storage.local.get(["roi"], (result) => {
+  if (result.roi) {
+    roiCoords = result.roi;
+  }
+});
+
 // Initialize Sampling Engine with references to our functions
 SamplingEngine.init(grabFrame, getROI);
 
@@ -294,6 +300,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       detector: FeedDetector.getDiagnostics(),
       scheduler: TransmissionScheduler.getDiagnostics()
     });
+  }
+  else if (message.action === "toggle-overlay") {
+    // Toggle the in-page Cyber-Red HUD overlay visibility (Alt+Shift+V)
+    const overlay = document.getElementById("fragengine-inpage-overlay");
+    if (overlay) {
+      overlay.style.display = overlay.style.display === "none" ? "block" : "none";
+    }
+    sendResponse({ status: "toggled" });
   }
   return true;
 });
