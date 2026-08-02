@@ -8,6 +8,9 @@ import sys
 import time
 import json
 import base64
+import socket
+import datetime
+import traceback
 import threading
 import requests
 import cv2
@@ -565,8 +568,98 @@ class SpectatorOverlayAddon(QtWidgets.QWidget):
         self.hotkey_thread.start()
 
 
-if __name__ == "__main__":
+class SpectatorSplashScreen(QtWidgets.QSplashScreen):
+    """Stylized cyber-red borderless boot loader screen."""
+    def __init__(self):
+        pixmap = QtGui.QPixmap(420, 220)
+        pixmap.fill(QtGui.QColor("#0d0f14"))
+        super().__init__(pixmap)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+
+        # Custom paint rendering
+        painter = QtGui.QPainter(self.pixmap())
+        painter.setPen(QtGui.QColor("#ff2a2a"))
+        painter.setFont(QtGui.QFont("Consolas", 14, QtGui.QFont.Bold))
+        painter.drawText(24, 60, "((o)) FRAGLAB SPECTATOR SYSTEM")
+
+        painter.setPen(QtGui.QColor("#ffffff"))
+        painter.setFont(QtGui.QFont("Consolas", 9))
+        painter.drawText(24, 110, "Verifying game assets & weapon templates...")
+        painter.drawText(24, 130, "Checking configuration updates...")
+        
+        # Border
+        painter.setPen(QtGui.QColor("#ff2a2a"))
+        painter.drawRect(0, 0, 419, 219)
+        painter.end()
+
+
+def exception_hook(exctype, value, tb):
+    """Global exception hook to generate crash logs and show user-facing error dialogs."""
+    crash_dir = os.path.join(BASE_DIR, "reports", "crash_dumps")
+    os.makedirs(crash_dir, exist_ok=True)
+    
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    crash_file = os.path.join(crash_dir, f"crash_{timestamp}.txt")
+    
+    err_msg = "".join(traceback.format_exception(exctype, value, tb))
+    try:
+        with open(crash_file, "w", encoding="utf-8") as f:
+            f.write(err_msg)
+    except Exception:
+        pass
+        
+    msg_box = QtWidgets.QMessageBox()
+    msg_box.setIcon(QtWidgets.QMessageBox.Critical)
+    msg_box.setWindowTitle("FragEngine Crash Detected")
+    msg_box.setText("An unexpected runtime error occurred.")
+    msg_box.setInformativeText(f"A diagnostic crash report has been saved to:\n{crash_file}\n\nPlease submit this file to report the bug.")
+    msg_box.setDetailedText(err_msg)
+    msg_box.exec_()
+    sys.exit(1)
+
+
+# Enforce Single-Instance Execution using TCP Port Lock
+try:
+    lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    lock_socket.bind(("127.0.0.1", 48325))
+    lock_socket.listen(1)
+except OSError:
+    # Port is already bound, exit cleanly with GUI warning box
     app = QtWidgets.QApplication(sys.argv)
+    QtWidgets.QMessageBox.warning(
+        None, "FragEngine Active",
+        "Another instance of the FragEngine Spectator Addon is already running.\n\nOnly one instance may execute at a time."
+    )
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    # Register exception handler
+    sys.excepthook = exception_hook
+
+    app = QtWidgets.QApplication(sys.argv)
+
+    # Show loading splash screen during asset checks
+    splash = SpectatorSplashScreen()
+    splash.show()
+    app.processEvents()
+
+    # Verify Critical Assets
+    icons_path = os.path.join(BASE_DIR, "icons")
+    rulesets_path = os.path.join(BASE_DIR, "config", "rulesets")
+    
+    time.sleep(1.2) # Stylized load delay
+
+    if not os.path.exists(icons_path) or not os.path.exists(rulesets_path):
+        splash.close()
+        QtWidgets.QMessageBox.critical(
+            None, "Missing Core Assets",
+            f"FragEngine assets could not be verified under:\n{BASE_DIR}\n\nPlease reinstall using the guided setup."
+        )
+        sys.exit(1)
+
+    # Initialize Main App
     addon = SpectatorOverlayAddon()
+    splash.finish(addon)
     addon.show()
     sys.exit(app.exec_())
