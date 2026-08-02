@@ -1,142 +1,150 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
 
+  <!-- AAA Sleek Banner Header -->
   <div class="banner">
-    <div class="banner-title">FRAGENGINE // V0.16.1</div>
-    <div class="status-container">
+    <div class="banner-brand">
+      <div class="brand-accent-line"></div>
+      <div class="banner-title">FRAGENGINE <span>// V0.16.2</span></div>
+    </div>
+    <div class="status-badge">
       <div id="statusDot" class="status-dot"></div>
-      <div id="statusLabel" class="diag-val highlight">IDLE</div>
+      <div id="statusLabel" class="status-text">IDLE</div>
     </div>
   </div>
 
-  <!-- Controls Panel -->
-  <div class="panel">
-    <div class="panel-header">System Controls</div>
-    <div class="controls-grid">
-      <button id="btnCalibrate">Calibrate</button>
-      <button id="btnDashboard" style="background: #ff2a2a; color: #fff; font-weight: bold;">LIVE HUD</button>
-      <button id="btnExportAnalytics" style="background: #1e2533; color: #38ef7d; border: 1px solid #38ef7d;">📊 ANALYTICS</button>
-      <button id="btnStart" class="btn-action" disabled>Start Ingest</button>
-      <button id="btnStop" class="btn-action btn-stop" style="display:none;">Stop Ingest</button>
-    </div>
-    <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
-      <div style="display: flex; flex-direction: column; gap: 2px;">
-        <label for="selScaleProfile" style="font-size: 10px; color: #7a8599; font-weight: bold;">INGEST SCALE PROFILE:</label>
-        <select id="selScaleProfile" style="background: #0c0d10; color: #ff2a2a; border: 1px solid rgba(255, 42, 42, 0.3); padding: 5px; font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: bold; border-radius: 4px; cursor: pointer;">
+  <!-- Segmented Tab Bar -->
+  <div class="nav-tabs">
+    <button class="tab-btn active" data-tab="tab-controls">⚡ CONTROLS</button>
+    <button class="tab-btn" data-tab="tab-metrics">📊 METRICS</button>
+    <button class="tab-btn" data-tab="tab-frame">👁️ FRAME</button>
+    <button class="tab-btn" data-tab="tab-logs">📜 LOGS</button>
+  </div>
+
+  <!-- TAB 1: CONTROLS -->
+  <div id="tab-controls" class="tab-content active">
+    <div class="card">
+      <div class="card-title">
+        <span>SYSTEM CONTROLS</span>
+      </div>
+      <div class="btn-row">
+        <button id="btnCalibrate" class="btn-mini">🎯 CALIBRATE</button>
+        <button id="btnDashboard" class="btn-mini" style="background: rgba(255,42,42,0.2); border-color: #ff2a2a; color:#fff;">🔴 LIVE HUD</button>
+        <button id="btnExportAnalytics" class="btn-mini" style="color:#39ff14; border-color: rgba(57,255,20,0.3);">📥 ANALYTICS</button>
+      </div>
+
+      <div style="margin-top: 8px;">
+        <button id="btnStart" class="btn-primary-action" disabled>START INGEST</button>
+        <button id="btnStop" class="btn-primary-action btn-stop" style="display:none;">STOP INGEST</button>
+      </div>
+
+      <div class="control-group" style="margin-top: 10px;">
+        <label for="selScaleProfile" class="control-label">INGEST SCALE PROFILE:</label>
+        <select id="selScaleProfile" class="cyber-select">
           <option value="100" selected>100% Standard Stream Scale (Default)</option>
           <option value="250">250% In-Game Large Scale (Fast &lt; 1.5ms)</option>
         </select>
       </div>
-      <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-        <input type="checkbox" id="chkAlwaysOn" style="accent-color: #ff2a2a; cursor: pointer;">
-        <label for="chkAlwaysOn" style="cursor: pointer; font-size: 11px; color: #7a8599; user-select: none;">ALWAYS INGEST AUTOMATICALLY</label>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="chkAlwaysOn">
+        <label for="chkAlwaysOn">ALWAYS INGEST AUTOMATICALLY</label>
       </div>
     </div>
   </div>
 
-  <!-- Session Diagnostics -->
-  <div class="panel">
-    <div class="panel-header">Session Statistics</div>
-    <div class="diag-row">
-      <span class="diag-label">Duration:</span>
-      <span id="lblDuration" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Current Sampling:</span>
-      <span id="lblSamplingMode" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Frames Sampled:</span>
-      <span id="lblFramesSampled" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Frames Sent (Server):</span>
-      <span id="lblFramesSent" class="diag-val success">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Frames Rejected:</span>
-      <span id="lblFramesRejected" class="diag-val alert">-</span>
-    </div>
-  </div>
-
-  <!-- Current Frame Diagnostics -->
-  <div class="panel">
-    <div class="panel-header">Current Frame Analysis</div>
-    
-    <div class="preview-container" style="margin-bottom: 8px;">
-      <div class="preview-box">
-        <canvas id="canvasRaw"></canvas>
-        <div class="preview-title">RAW CROP</div>
+  <!-- TAB 2: METRICS -->
+  <div id="tab-metrics" class="tab-content">
+    <div class="card">
+      <div class="card-title">SESSION METRICS</div>
+      <div class="stat-row">
+        <span class="stat-label">Duration:</span>
+        <span id="lblDuration" class="stat-value">-</span>
       </div>
-      <div class="preview-box">
-        <canvas id="canvasBin"></canvas>
-        <div class="preview-title">BIN MASK</div>
+      <div class="stat-row">
+        <span class="stat-label">Sampling Mode:</span>
+        <span id="lblSamplingMode" class="stat-value highlight">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Frames Sampled:</span>
+        <span id="lblFramesSampled" class="stat-value">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Frames Sent (Server):</span>
+        <span id="lblFramesSent" class="stat-value green">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Frames Rejected:</span>
+        <span id="lblFramesRejected" class="stat-value highlight">-</span>
       </div>
     </div>
-    
-    <div class="diag-row">
-      <span class="diag-label">Pixel Difference:</span>
-      <span id="lblPixelDiff" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">White Pixel Density:</span>
-      <span id="lblSaturationScore" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Brightness Score:</span>
-      <span id="lblBrightness" class="diag-val">-</span>
+  </div>
+
+  <!-- TAB 3: FRAME ANALYSIS -->
+  <div id="tab-frame" class="tab-content">
+    <div class="card">
+      <div class="card-title">FRAME DIAGNOSTICS</div>
+      
+      <div class="preview-flex">
+        <div class="preview-item">
+          <canvas id="canvasRaw"></canvas>
+          <div class="preview-lbl">RAW CROP</div>
+        </div>
+        <div class="preview-item">
+          <canvas id="canvasBin"></canvas>
+          <div class="preview-lbl">BIN MASK</div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <span class="stat-label">Pixel Difference:</span>
+        <span id="lblPixelDiff" class="stat-value">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Brightness Score:</span>
+        <span id="lblBrightness" class="stat-value">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Feed Present:</span>
+        <span id="lblFeedPresent" class="stat-value green">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Rapid Mode:</span>
+        <span id="lblRapidActive" class="stat-value highlight">-</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Engine Reason:</span>
+        <span id="lblReason" class="stat-value highlight">-</span>
+      </div>
     </div>
   </div>
 
-  <!-- Decision Diagnostics -->
-  <div class="panel">
-    <div class="panel-header">Decision Engine State</div>
-    <div class="diag-row">
-      <span class="diag-label">Feed Present:</span>
-      <span id="lblFeedPresent" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Rapid Mode Active:</span>
-      <span id="lblRapidActive" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Next Send In:</span>
-      <span id="lblNextSend" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Cooldown Active:</span>
-      <span id="lblCooldown" class="diag-val">-</span>
-    </div>
-    <div class="diag-row">
-      <span class="diag-label">Reason:</span>
-      <span id="lblReason" class="diag-val highlight">-</span>
-    </div>
-  </div>
-
-  <!-- Table View Panel -->
-  <div class="panel" style="margin-bottom: 0;">
-    <div class="panel-header">Quality Log Telemetry Stream</div>
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 40px; text-align: center;">Log #</th>
-            <th style="width: 50px; text-align: center;">Type</th>
-            <th>T1</th>
-            <th style="width: 60px; text-align: center;">I1</th>
-            <th style="width: 60px; text-align: center;">I2</th>
-            <th>T2</th>
-          </tr>
-        </thead>
-        <tbody id="logTableBody">
-          <!-- Rows will append here -->
-        </tbody>
-      </table>
+  <!-- TAB 4: STREAM LOGS -->
+  <div id="tab-logs" class="tab-content">
+    <div class="card" style="padding: 6px;">
+      <div class="card-title" style="padding: 6px 6px 0 6px;">TELEMETRY STREAM LOGS</div>
+      <div class="stream-table-box">
+        <table class="sleek-table">
+          <thead>
+            <tr>
+              <th style="width: 36px; text-align: center;">#</th>
+              <th style="width: 44px; text-align: center;">TYPE</th>
+              <th>T1</th>
+              <th style="width: 44px; text-align: center;">I1</th>
+              <th style="width: 44px; text-align: center;">I2</th>
+              <th>T2</th>
+            </tr>
+          </thead>
+          <tbody id="logTableBody">
+            <!-- Dynamic Log Rows -->
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 

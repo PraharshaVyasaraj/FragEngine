@@ -35,6 +35,19 @@ const chkAlwaysOn = document.getElementById("chkAlwaysOn");
 
 // DOM Initializer
 document.addEventListener("DOMContentLoaded", async () => {
+  // Tab Switching System
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+
+      btn.classList.add("active");
+      const targetId = btn.getAttribute("data-tab");
+      const targetContent = document.getElementById(targetId);
+      if (targetContent) targetContent.classList.add("active");
+    });
+  });
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
   activeTabId = tab.id;
