@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FragEngine Telemetry Link",
-  "version": "0.16.0",
-  "description": "Real-time telemetry extraction for FragLab Analytics.",
+  "version": "0.16.1",
+  "description": "Real-time telemetry extraction & in-page HUD overlay for FragLab Analytics.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -21,6 +21,7 @@
         "feed_detector.js",
         "transmission_scheduler.js",
         "sampling_engine.js",
+        "overlay_injector.js",
         "content.js"
       ],
       "run_at": "document_idle"
@@ -32,5 +33,19 @@
   },
   "background": {
     "service_worker": "background.js"
+  },
+  "commands": {
+    "toggle-ingest": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Toggle Frame Sampling Ingest"
+    },
+    "toggle-overlay": {
+      "suggested_key": {
+        "default": "Alt+Shift+V"
+      },
+      "description": "Toggle In-Page Cyber-Red Overlay"
+    }
   }
 }

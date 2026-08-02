@@ -131,6 +131,29 @@ if (btnDashboard) {
   });
 }
 
+// Export Analytics Report
+const btnExportAnalytics = document.getElementById("btnExportAnalytics");
+if (btnExportAnalytics) {
+  btnExportAnalytics.addEventListener("click", () => {
+    fetch("http://127.0.0.1:5000/api/analytics/export")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "success" && data.report) {
+          const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `fragengine_match_report_${Date.now()}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        } else {
+          alert("Failed to generate analytics report. Ensure server is active.");
+        }
+      })
+      .catch((err) => alert("Could not connect to Flask server analytics endpoint."));
+  });
+}
+
 // Start Ingest
 btnStart.addEventListener("click", () => {
   if (!activeTabId || !roiCoords) return;

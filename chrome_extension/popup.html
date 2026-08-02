@@ -7,7 +7,7 @@
 <body>
 
   <div class="banner">
-    <div class="banner-title">FRAGENGINE // V0.16</div>
+    <div class="banner-title">FRAGENGINE // V0.16.1</div>
     <div class="status-container">
       <div id="statusDot" class="status-dot"></div>
       <div id="statusLabel" class="diag-val highlight">IDLE</div>
@@ -20,12 +20,19 @@
     <div class="controls-grid">
       <button id="btnCalibrate">Calibrate</button>
       <button id="btnDashboard" style="background: #ff2a2a; color: #fff; font-weight: bold;">LIVE HUD</button>
-      <button id="btnStart" class="btn-action" disabled>Start Ingest (60FPS)</button>
+      <button id="btnExportAnalytics" style="background: #1e2533; color: #38ef7d; border: 1px solid #38ef7d;">📊 ANALYTICS</button>
+      <button id="btnStart" class="btn-action" disabled>Start Ingest</button>
       <button id="btnStop" class="btn-action btn-stop" style="display:none;">Stop Ingest</button>
     </div>
-    <div style="margin-top: 8px; display: flex; align-items: center; gap: 6px;">
-      <input type="checkbox" id="chkAlwaysOn" style="accent-color: #d35400; cursor: pointer;">
-      <label for="chkAlwaysOn" style="cursor: pointer; font-size: 11px; color: #7f8c8d; user-select: none;">ALWAYS INGEST AUTOMATICALLY</label>
+    <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="chkScale250" style="accent-color: #ff2a2a; cursor: pointer;">
+        <label for="chkScale250" style="cursor: pointer; font-size: 11px; color: #00f2fe; user-select: none;">250% LARGE SCALE INGEST PROFILE (< 1.5ms)</label>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="chkAlwaysOn" style="accent-color: #d35400; cursor: pointer;">
+        <label for="chkAlwaysOn" style="cursor: pointer; font-size: 11px; color: #7f8c8d; user-select: none;">ALWAYS INGEST AUTOMATICALLY</label>
+      </div>
     </div>
   </div>
 

@@ -448,6 +448,26 @@ def get_telemetry_state():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/analytics/export", methods=["GET", "POST"])
+def export_analytics():
+    """Exports and returns match summary analytics and leaderboard data."""
+    try:
+        from utils.analytics_engine import AnalyticsEngine
+        analytics = AnalyticsEngine(session_id=f"SESSION_{int(time.time())}")
+        reports = analytics.export_match_analytics(state_engine, scoring_engine)
+
+        with open(reports["json_report"], "r", encoding="utf-8") as f:
+            report_data = json.load(f)
+
+        return jsonify({
+            "status": "success",
+            "message": "Analytics exported successfully",
+            "report": report_data
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 if __name__ == "__main__":
     print("FragEngine 0.16.0 — Active (Decoupled Telemetry Architecture)")
     app.run(host="127.0.0.1", port=5000, debug=False)
