@@ -15,13 +15,18 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from parser import FeedParser
 
-# Import V0.16 Decoupled Telemetry Engines
+# Import V0.16 & V0.17 Decoupled Engines
 from utils.state_engine import StateEngine
 from utils.scoring_engine import ScoringEngine
+from utils.auto_learner import AutoLearner
+from utils.replay_builder import ReplayBuilder
 
 # Setup telemetry collector path
 base_dir = r"C:\FragEngine"
 from backend.telemetry import TelemetryCollector
+
+# Initialize AutoLearner Engine
+auto_learner = AutoLearner(base_dir)
 
 # Initialize Telemetry
 telemetry = TelemetryCollector(base_dir)
@@ -469,6 +474,50 @@ def export_analytics():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/dictionary/candidates", methods=["GET"])
+def get_dictionary_candidates():
+    """Returns candidate unrecognized team tags and player names for approval."""
+    try:
+        candidates = auto_learner.get_candidates()
+        return jsonify({"status": "success", **candidates})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/dictionary/approve", methods=["POST"])
+def approve_dictionary_candidate():
+    """Approves a candidate tag or player name, appending it to the CSV dataset."""
+    try:
+        data = request.json
+        if not data or "name" not in data or "type" not in data:
+            return jsonify({"status": "error", "message": "Missing 'name' or 'type' in request payload"}), 400
+
+        name = data["name"]
+        target_type = data["type"] # 'tag' or 'player'
+        success = auto_learner.approve_candidate(name, target_type)
+
+        if success:
+            return jsonify({"status": "success", "message": f"Approved '{name}' as {target_type}."})
+        else:
+            return jsonify({"status": "error", "message": f"Failed to approve '{name}'"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/dictionary/ignore", methods=["POST"])
+def ignore_dictionary_candidate():
+    """Ignores a candidate name."""
+    try:
+        data = request.json
+        if not data or "name" not in data:
+            return jsonify({"status": "error", "message": "Missing 'name' in payload"}), 400
+
+        auto_learner.ignore_candidate(data["name"])
+        return jsonify({"status": "success", "message": f"Ignored '{data['name']}'"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 if __name__ == "__main__":
-    print("FragEngine 0.16.0 — Active (Decoupled Telemetry Architecture)")
+    print("FragEngine 0.17.0 — Active (Decoupled Intelligence Suite)")
     app.run(host="127.0.0.1", port=5000, debug=False)

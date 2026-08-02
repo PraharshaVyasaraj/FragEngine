@@ -23,9 +23,16 @@ document.addEventListener("DOMContentLoaded", () => {
     btnDownloadReport.addEventListener("click", downloadReport);
   }
 
+  const btnRefreshCandidates = document.getElementById("btnRefreshCandidates");
+  if (btnRefreshCandidates) {
+    btnRefreshCandidates.addEventListener("click", pollCandidates);
+  }
+
   // Poll live telemetry every second
   setInterval(pollTelemetry, 1000);
+  setInterval(pollCandidates, 3000);
   pollTelemetry();
+  pollCandidates();
 });
 
 async function pollTelemetry() {
@@ -146,3 +153,77 @@ function downloadReport() {
     })
     .catch(() => alert("Could not connect to server."));
 }
+
+async function pollCandidates() {
+  const container = document.getElementById("candidateContainer");
+  if (!container) return;
+
+  try {
+    const res = await fetch(`${SERVER_URL}/api/dictionary/candidates`);
+    const data = await res.json();
+    if (data.status !== "success") return;
+
+    const tags = data.candidate_tags || [];
+    const players = data.candidate_players || [];
+
+    if (!tags.length && !players.length) {
+      container.innerHTML = `<div style="font-size: 10px; color: var(--fr-text-muted); text-align: center; padding: 8px;">NO UNRECOGNIZED CANDIDATES</div>`;
+      return;
+    }
+
+    let html = "";
+    tags.forEach((item) => {
+      html += createCandidateRow(item.name, "tag", item.count);
+    });
+    players.forEach((item) => {
+      html += createCandidateRow(item.name, "player", item.count);
+    });
+
+    container.innerHTML = html;
+  } catch (err) {
+    console.warn("Candidate poll error:", err);
+  }
+}
+
+function createCandidateRow(name, type, count) {
+  return `
+    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,42,42,0.06); border: 1px solid rgba(255,42,42,0.15); padding: 4px 8px; border-radius: 4px; font-size: 10px;">
+      <div>
+        <span style="color: var(--fr-red-primary); font-weight: bold;">[${type.toUpperCase()}]</span>
+        <span style="color: #fff; font-weight: bold; margin-left: 4px;">${name}</span>
+        <span style="color: var(--fr-text-muted); font-size: 9px;">(${count}x)</span>
+      </div>
+      <div style="display: flex; gap: 4px;">
+        <button onclick="approveCandidate('${name}', '${type}')" style="background: var(--fr-red-primary); color: #fff; border: none; padding: 2px 6px; border-radius: 2px; font-size: 9px; font-weight: bold; cursor: pointer;">ACCEPT</button>
+        <button onclick="ignoreCandidate('${name}')" style="background: rgba(255,255,255,0.1); color: var(--fr-text-muted); border: none; padding: 2px 6px; border-radius: 2px; font-size: 9px; cursor: pointer;">IGNORE</button>
+      </div>
+    </div>
+  `;
+}
+
+async function approveCandidate(name, type) {
+  try {
+    await fetch(`${SERVER_URL}/api/dictionary/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name, type: type })
+    });
+    pollCandidates();
+  } catch (err) {
+    alert("Error approving candidate: " + err);
+  }
+}
+
+async function ignoreCandidate(name) {
+  try {
+    await fetch(`${SERVER_URL}/api/dictionary/ignore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name })
+    });
+    pollCandidates();
+  } catch (err) {
+    alert("Error ignoring candidate: " + err);
+  }
+}
+
