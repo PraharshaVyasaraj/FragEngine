@@ -1,0 +1,5 @@
+{
+  "summary": "Deep analysis of the Flask server log from SESSION_0006. Covers session timeline reconstruction, burst traffic patterns, queue backlog evidence, gap analysis, and cross-correlation with the QL log entries to build a complete picture of what happened during the 34-minute run.",
+  "updatedAt": "2026-07-13T15:23:38.203850Z",
+  "userFacing": true
+}

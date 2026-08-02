@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "FragEngine Telemetry Link",
+  "version": "0.15",
+  "description": "Real-time telemetry extraction for FragLab Analytics.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "sidePanel",
+    "downloads"
+  ],
+  "host_permissions": [
+    "http://localhost:5000/*",
+    "http://127.0.0.1:5000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": [
+        "feed_detector.js",
+        "transmission_scheduler.js",
+        "sampling_engine.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {},
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

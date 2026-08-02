@@ -1,0 +1,5 @@
+{
+  "summary": "V0.13 baseline telemetry analysis from SESSION_0006, a 25-minute live capture run. Contains hardware metrics, pipeline latency breakdown, quality metrics, and critical findings that will define V0.14 OpenVINO optimization targets.",
+  "updatedAt": "2026-07-13T15:13:31.884036500Z",
+  "userFacing": true
+}

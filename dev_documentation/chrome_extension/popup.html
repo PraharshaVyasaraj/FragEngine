@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <div class="banner">
+    <div class="banner-title">FRAGENGINE // V0.15</div>
+    <div class="status-container">
+      <div id="statusDot" class="status-dot"></div>
+      <div id="statusLabel" class="diag-val highlight">IDLE</div>
+    </div>
+  </div>
+
+  <!-- Controls Panel -->
+  <div class="panel">
+    <div class="panel-header">System Controls</div>
+    <div class="controls-grid">
+      <button id="btnCalibrate">Calibrate</button>
+      <button id="btnExport" disabled>Export CSV</button>
+      <button id="btnIgnore">Ignore</button>
+      <button id="btnStart" class="btn-action" disabled>Start Ingest (60FPS)</button>
+      <button id="btnStop" class="btn-action btn-stop" style="display:none;">Stop Ingest</button>
+    </div>
+  </div>
+
+  <!-- Session Diagnostics -->
+  <div class="panel">
+    <div class="panel-header">Session Statistics</div>
+    <div class="diag-row">
+      <span class="diag-label">Duration:</span>
+      <span id="lblDuration" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Current Sampling:</span>
+      <span id="lblSamplingMode" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Frames Sampled:</span>
+      <span id="lblFramesSampled" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Frames Sent (Server):</span>
+      <span id="lblFramesSent" class="diag-val success">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Frames Rejected:</span>
+      <span id="lblFramesRejected" class="diag-val alert">-</span>
+    </div>
+  </div>
+
+  <!-- Current Frame Diagnostics -->
+  <div class="panel">
+    <div class="panel-header">Current Frame Analysis</div>
+    
+    <div class="preview-container" style="margin-bottom: 8px;">
+      <div class="preview-box">
+        <canvas id="canvasRaw"></canvas>
+        <div class="preview-title">RAW CROP</div>
+      </div>
+      <div class="preview-box">
+        <canvas id="canvasBin"></canvas>
+        <div class="preview-title">BIN MASK</div>
+      </div>
+    </div>
+    
+    <div class="diag-row">
+      <span class="diag-label">Pixel Difference:</span>
+      <span id="lblPixelDiff" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">White Pixel Density:</span>
+      <span id="lblSaturationScore" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Brightness Score:</span>
+      <span id="lblBrightness" class="diag-val">-</span>
+    </div>
+  </div>
+
+  <!-- Decision Diagnostics -->
+  <div class="panel">
+    <div class="panel-header">Decision Engine State</div>
+    <div class="diag-row">
+      <span class="diag-label">Feed Present:</span>
+      <span id="lblFeedPresent" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Rapid Mode Active:</span>
+      <span id="lblRapidActive" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Next Send In:</span>
+      <span id="lblNextSend" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Cooldown Active:</span>
+      <span id="lblCooldown" class="diag-val">-</span>
+    </div>
+    <div class="diag-row">
+      <span class="diag-label">Reason:</span>
+      <span id="lblReason" class="diag-val highlight">-</span>
+    </div>
+  </div>
+
+  <!-- Table View Panel -->
+  <div class="panel" style="margin-bottom: 0;">
+    <div class="panel-header">Quality Log Telemetry Stream</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 40px; text-align: center;">Log #</th>
+            <th style="width: 50px; text-align: center;">Type</th>
+            <th>T1</th>
+            <th style="width: 60px; text-align: center;">I1</th>
+            <th style="width: 60px; text-align: center;">I2</th>
+            <th>T2</th>
+          </tr>
+        </thead>
+        <tbody id="logTableBody">
+          <!-- Rows will append here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
