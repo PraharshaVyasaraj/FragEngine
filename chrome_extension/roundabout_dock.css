@@ -1,0 +1,173 @@
+/* FragEngine V0.16.1 — Smart Roundabout Orbital App Dock CSS */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+
+:root {
+  --fr-primary-red: #ff2a2a;
+  --fr-crimson-flame: #d30000;
+  --fr-obsidian-bg: rgba(12, 13, 16, 0.94);
+  --fr-panel-bg: rgba(22, 25, 32, 0.92);
+  --fr-text-white: #ffffff;
+  --fr-text-dim: #7a8599;
+  --fr-red-glow: rgba(255, 42, 42, 0.45);
+}
+
+#fragengine-roundabout-root {
+  position: fixed;
+  top: 80px;
+  right: 40px;
+  z-index: 2147483647;
+  font-family: 'JetBrains Mono', monospace;
+  user-select: none;
+}
+
+/* Central Roundabout Core Hub */
+.fr-roundabout-core {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--fr-obsidian-bg);
+  border: 2px solid var(--fr-primary-red);
+  box-shadow: 0 0 16px var(--fr-red-glow), inset 0 0 12px rgba(255, 42, 42, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  position: relative;
+  backdrop-filter: blur(8px);
+}
+
+.fr-roundabout-core:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 24px rgba(255, 42, 42, 0.7);
+}
+
+.fr-roundabout-core-ring {
+  position: absolute;
+  top: -4px; left: -4px; right: -4px; bottom: -4px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--fr-primary-red);
+  animation: fr-spin 12s linear infinite;
+  opacity: 0.7;
+}
+
+@keyframes fr-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.fr-core-icon {
+  color: var(--fr-primary-red);
+  font-size: 16px;
+  font-weight: 800;
+  text-shadow: 0 0 8px var(--fr-primary-red);
+}
+
+/* Radial Ring Dock for App Pods */
+.fr-roundabout-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2) rotate(-90deg);
+}
+
+.fr-roundabout-orbit.expanded {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1) rotate(0deg);
+}
+
+/* App Pod Items in the Orbital Ring */
+.fr-orbital-pod {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--fr-panel-bg);
+  border: 1px solid rgba(255, 42, 42, 0.35);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fr-text-white);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(6px);
+  margin-top: -22px;
+  margin-left: -22px;
+}
+
+.fr-orbital-pod:hover {
+  background: var(--fr-primary-red);
+  border-color: var(--fr-primary-red);
+  color: #fff;
+  transform: scale(1.25);
+  box-shadow: 0 0 16px var(--fr-primary-red);
+}
+
+/* Pod Tooltip Badge */
+.fr-pod-tooltip {
+  position: absolute;
+  bottom: -22px;
+  white-space: nowrap;
+  background: var(--fr-obsidian-bg);
+  color: var(--fr-primary-red);
+  border: 1px solid rgba(255, 42, 42, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.fr-orbital-pod:hover .fr-pod-tooltip {
+  opacity: 1;
+}
+
+/* Smart Roundabout Expanded Card Windows */
+.fr-roundabout-card {
+  position: absolute;
+  top: 70px;
+  right: 0;
+  width: 350px;
+  background: var(--fr-obsidian-bg);
+  border: 1px solid rgba(255, 42, 42, 0.25);
+  border-top: 3px solid var(--fr-primary-red);
+  border-radius: 8px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.75);
+  padding: 12px;
+  backdrop-filter: blur(10px);
+  display: none;
+  animation: fr-fade-in 0.25s ease-out;
+}
+
+.fr-roundabout-card.active {
+  display: block;
+}
+
+@keyframes fr-fade-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fr-card-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 42, 42, 0.2);
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--fr-primary-red);
+  letter-spacing: 1px;
+}

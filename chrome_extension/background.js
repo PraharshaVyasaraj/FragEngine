@@ -154,4 +154,12 @@ chrome.commands.onCommand.addListener((command) => {
       }
     });
   }
+  else if (command === "toggle-roundabout") {
+    // Find active tab and send toggle message to roundabout_dock.js
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: "toggle-roundabout" }).catch(() => {});
+      }
+    });
+  }
 });

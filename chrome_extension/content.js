@@ -309,6 +309,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     sendResponse({ status: "toggled" });
   }
+  else if (message.action === "toggle-roundabout") {
+    // Toggle the Smart Roundabout App Dock (Alt+Shift+R)
+    const roundabout = document.getElementById("fragengine-roundabout-root");
+    if (roundabout) {
+      roundabout.style.display = roundabout.style.display === "none" ? "block" : "none";
+    }
+    sendResponse({ status: "toggled" });
+  }
   return true;
 });
 
