@@ -66,7 +66,7 @@ class FeedParser:
         add_template("ZONE", zone_path)
             
         # Load Grenade (THROWABLES/NADE.png)
-        nade_path = os.path.join(self.icons_dir, "WEAPONS", "THROWABLES", "NADE.png")
+        nade_path = os.path.join(self.icons_dir, "THROWABLES", "NADE.png")
         add_template("GRENADE", nade_path)
             
         # Load Vehicles (EV, Taxi, Ferry, Helicopter)
