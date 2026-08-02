@@ -68,16 +68,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Restore checkbox preference
-  chrome.storage.local.get(["alwaysOn"], (result) => {
+  // Restore preferences
+  const selScaleProfile = document.getElementById("selScaleProfile");
+  chrome.storage.local.get(["alwaysOn", "scaleProfile"], (result) => {
     if (result.alwaysOn) {
       chkAlwaysOn.checked = true;
+    }
+    if (result.scaleProfile && selScaleProfile) {
+      selScaleProfile.value = result.scaleProfile;
     }
   });
 
   chkAlwaysOn.addEventListener("change", () => {
     chrome.storage.local.set({ alwaysOn: chkAlwaysOn.checked });
   });
+
+  if (selScaleProfile) {
+    selScaleProfile.addEventListener("change", () => {
+      chrome.storage.local.set({ scaleProfile: selScaleProfile.value });
+    });
+  }
 
   checkVideoStatus();
 });
