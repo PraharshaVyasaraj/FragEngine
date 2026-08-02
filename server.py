@@ -302,14 +302,14 @@ def process_frame():
                 return jsonify({"status": "skipped", "reason": f"T2 too short: {res['t2']}"})
 
             # ─────────────────────────────────────────────────────────
-            # V0.14.3 RATE LIMITER: Enforce 400ms delta between logged events
+            # V0.14.3 RATE LIMITER: Enforce 250ms delta between logged events
             # ─────────────────────────────────────────────────────────
             current_time = time.time()
-            if current_time - last_log_time < 0.400:
+            if current_time - last_log_time < 0.250:
                 total_ms = (time.perf_counter() - t_start) * 1000
                 telemetry.log_request_performance(stages_ms, total_ms, dict_hits_count=dict_hits_count, duplicate_blocked=True, ocr_confidence=ocr_confidence, levenshtein_dist=levenshtein_dist, status="duplicate")
-                print(f"[WALL BLOCKED] Rate-limit threshold: <400ms since last log")
-                return jsonify({"status": "duplicate", "reason": "Rate-limit threshold: <400ms since last log"})
+                print(f"[WALL BLOCKED] Rate-limit threshold: <250ms since last log")
+                return jsonify({"status": "duplicate", "reason": "Rate-limit threshold: <250ms since last log"})
 
             # ─────────────────────────────────────────────────────────
             # V0.14.3 DEDUPLICATION CHECK
